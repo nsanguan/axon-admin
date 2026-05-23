@@ -49,6 +49,8 @@ const prisma_module_1 = __webpack_require__(14);
 const auth_module_1 = __webpack_require__(17);
 const users_module_1 = __webpack_require__(29);
 const dashboard_module_1 = __webpack_require__(30);
+const plugins_module_1 = __webpack_require__(33);
+const tools_module_1 = __webpack_require__(37);
 const jwt_auth_guard_1 = __webpack_require__(12);
 let AppModule = class AppModule {
 };
@@ -70,6 +72,8 @@ exports.AppModule = AppModule = tslib_1.__decorate([
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             dashboard_module_1.DashboardModule,
+            plugins_module_1.PluginsModule,
+            tools_module_1.ToolsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
@@ -825,6 +829,673 @@ exports.DashboardController = DashboardController = tslib_1.__decorate([
     (0, common_1.Controller)('dashboard'),
     tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof dashboard_service_1.DashboardService !== "undefined" && dashboard_service_1.DashboardService) === "function" ? _a : Object])
 ], DashboardController);
+
+
+/***/ }),
+/* 33 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PluginsModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const plugins_service_1 = __webpack_require__(34);
+const plugins_controller_1 = __webpack_require__(35);
+let PluginsModule = class PluginsModule {
+};
+exports.PluginsModule = PluginsModule;
+exports.PluginsModule = PluginsModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [plugins_service_1.PluginsService],
+        controllers: [plugins_controller_1.PluginsController],
+        exports: [plugins_service_1.PluginsService],
+    })
+], PluginsModule);
+
+
+/***/ }),
+/* 34 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PluginsService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let PluginsService = class PluginsService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findAll(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '20');
+        const skip = (page - 1) * pageSize;
+        const where = { deletedAt: null };
+        if (query.status)
+            where['status'] = query.status;
+        if (query.groupId)
+            where['groupId'] = query.groupId;
+        if (query.search) {
+            where['OR'] = [
+                { name: { contains: query.search, mode: 'insensitive' } },
+                { description: { contains: query.search, mode: 'insensitive' } },
+                { endpoint: { contains: query.search, mode: 'insensitive' } },
+            ];
+        }
+        const [data, total] = await Promise.all([
+            this.prisma.plugin.findMany({
+                where,
+                skip,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                include: { group: true, pluginTagMaps: { include: { tag: true } } },
+            }),
+            this.prisma.plugin.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async findOne(id) {
+        const plugin = await this.prisma.plugin.findFirst({
+            where: { id, deletedAt: null },
+            include: {
+                group: true,
+                pluginTagMaps: { include: { tag: true } },
+                envVars: { select: { id: true, key: true, isSecret: true } },
+            },
+        });
+        if (!plugin)
+            throw new common_1.NotFoundException('Plugin not found');
+        return plugin;
+    }
+    async create(dto, userId) {
+        return this.prisma.plugin.create({
+            data: {
+                ...dto,
+                createdBy: userId,
+            },
+        });
+    }
+    async update(id, dto) {
+        await this.findOne(id);
+        return this.prisma.plugin.update({ where: { id }, data: dto });
+    }
+    async remove(id) {
+        await this.findOne(id);
+        await this.prisma.plugin.update({
+            where: { id },
+            data: { deletedAt: new Date(), status: 'inactive' },
+        });
+        return { success: true };
+    }
+    async checkHealth(id) {
+        const plugin = await this.findOne(id);
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            const res = await fetch(`${plugin.endpoint}/health`, {
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const status = res.ok ? 'healthy' : 'degraded';
+            await this.prisma.plugin.update({
+                where: { id },
+                data: { healthStatus: status },
+            });
+            return { status, statusCode: res.status };
+        }
+        catch {
+            await this.prisma.plugin.update({
+                where: { id },
+                data: { healthStatus: 'unreachable' },
+            });
+            return { status: 'unreachable' };
+        }
+    }
+};
+exports.PluginsService = PluginsService;
+exports.PluginsService = PluginsService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], PluginsService);
+
+
+/***/ }),
+/* 35 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c, _d, _e;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PluginsController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const plugins_service_1 = __webpack_require__(34);
+const plugins_dto_1 = __webpack_require__(36);
+let PluginsController = class PluginsController {
+    constructor(pluginsService) {
+        this.pluginsService = pluginsService;
+    }
+    findAll(query) {
+        return this.pluginsService.findAll(query);
+    }
+    findOne(id) {
+        return this.pluginsService.findOne(id);
+    }
+    create(dto, req) {
+        return this.pluginsService.create(dto, req.user?.id);
+    }
+    update(id, dto) {
+        return this.pluginsService.update(id, dto);
+    }
+    remove(id) {
+        return this.pluginsService.remove(id);
+    }
+    checkHealth(id) {
+        return this.pluginsService.checkHealth(id);
+    }
+};
+exports.PluginsController = PluginsController;
+tslib_1.__decorate([
+    (0, common_1.Get)(),
+    (0, swagger_1.ApiOperation)({ summary: 'List all plugins with pagination and filtering' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_b = typeof plugins_dto_1.PluginQueryDto !== "undefined" && plugins_dto_1.PluginQueryDto) === "function" ? _b : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], PluginsController.prototype, "findAll", null);
+tslib_1.__decorate([
+    (0, common_1.Get)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get plugin by ID' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], PluginsController.prototype, "findOne", null);
+tslib_1.__decorate([
+    (0, common_1.Post)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create a new plugin' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_c = typeof plugins_dto_1.CreatePluginDto !== "undefined" && plugins_dto_1.CreatePluginDto) === "function" ? _c : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], PluginsController.prototype, "create", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update a plugin' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, typeof (_e = typeof plugins_dto_1.UpdatePluginDto !== "undefined" && plugins_dto_1.UpdatePluginDto) === "function" ? _e : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], PluginsController.prototype, "update", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Soft-delete a plugin' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], PluginsController.prototype, "remove", null);
+tslib_1.__decorate([
+    (0, common_1.Get)(':id/health'),
+    (0, swagger_1.ApiOperation)({ summary: 'Check plugin MCP health endpoint' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], PluginsController.prototype, "checkHealth", null);
+exports.PluginsController = PluginsController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Plugins'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('plugins'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof plugins_service_1.PluginsService !== "undefined" && plugins_service_1.PluginsService) === "function" ? _a : Object])
+], PluginsController);
+
+
+/***/ }),
+/* 36 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PluginQueryDto = exports.UpdatePluginDto = exports.CreatePluginDto = void 0;
+const tslib_1 = __webpack_require__(1);
+const class_validator_1 = __webpack_require__(26);
+const swagger_1 = __webpack_require__(4);
+class CreatePluginDto {
+}
+exports.CreatePluginDto = CreatePluginDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'Weather Plugin' }),
+    (0, class_validator_1.IsString)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "name", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "description", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'https://weather-mcp.example.com' }),
+    (0, class_validator_1.IsUrl)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "endpoint", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['none', 'api_key', 'bearer', 'basic'], default: 'none' }),
+    (0, class_validator_1.IsIn)(['none', 'api_key', 'bearer', 'basic']),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "authMethod", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "apiKeyEncrypted", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'JSON string of custom headers' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "headersJson", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ default: 30000 }),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1000),
+    (0, class_validator_1.Max)(300000),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", Number)
+], CreatePluginDto.prototype, "timeoutMs", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "retryPolicyJson", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreatePluginDto.prototype, "groupId", void 0);
+class UpdatePluginDto extends (0, swagger_1.PartialType)(CreatePluginDto) {
+}
+exports.UpdatePluginDto = UpdatePluginDto;
+class PluginQueryDto {
+}
+exports.PluginQueryDto = PluginQueryDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], PluginQueryDto.prototype, "search", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ enum: ['active', 'inactive', 'error'] }),
+    (0, class_validator_1.IsIn)(['active', 'inactive', 'error']),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], PluginQueryDto.prototype, "status", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], PluginQueryDto.prototype, "groupId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ default: '1' }),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], PluginQueryDto.prototype, "page", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ default: '20' }),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], PluginQueryDto.prototype, "pageSize", void 0);
+
+
+/***/ }),
+/* 37 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolsModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const tools_service_1 = __webpack_require__(38);
+const tools_controller_1 = __webpack_require__(39);
+let ToolsModule = class ToolsModule {
+};
+exports.ToolsModule = ToolsModule;
+exports.ToolsModule = ToolsModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [tools_service_1.ToolsService],
+        controllers: [tools_controller_1.ToolsController],
+        exports: [tools_service_1.ToolsService],
+    })
+], ToolsModule);
+
+
+/***/ }),
+/* 38 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolsService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let ToolsService = class ToolsService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findAll(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '20');
+        const skip = (page - 1) * pageSize;
+        const where = { deletedAt: null };
+        if (query.categoryId)
+            where['categoryId'] = query.categoryId;
+        if (query.pluginId)
+            where['pluginId'] = query.pluginId;
+        if (query.search) {
+            where['OR'] = [
+                { name: { contains: query.search, mode: 'insensitive' } },
+                { description: { contains: query.search, mode: 'insensitive' } },
+            ];
+        }
+        const [data, total] = await Promise.all([
+            this.prisma.tool.findMany({
+                where,
+                skip,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                include: { category: true, plugin: { select: { id: true, name: true, endpoint: true } } },
+            }),
+            this.prisma.tool.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async findOne(id) {
+        const tool = await this.prisma.tool.findFirst({
+            where: { id, deletedAt: null },
+            include: {
+                category: true,
+                plugin: true,
+                versions: { orderBy: { createdAt: 'desc' }, take: 10 },
+            },
+        });
+        if (!tool)
+            throw new common_1.NotFoundException('Tool not found');
+        return tool;
+    }
+    async create(dto, userId) {
+        return this.prisma.tool.create({
+            data: { ...dto, createdBy: userId },
+        });
+    }
+    async update(id, dto) {
+        await this.findOne(id);
+        return this.prisma.tool.update({ where: { id }, data: dto });
+    }
+    async remove(id) {
+        await this.findOne(id);
+        await this.prisma.tool.update({ where: { id }, data: { deletedAt: new Date() } });
+        return { success: true };
+    }
+    async execute(id, inputJson, userId) {
+        const tool = await this.findOne(id);
+        const start = Date.now();
+        let status = 'success';
+        let outputJson = null;
+        let errorMessage;
+        try {
+            if (!tool.plugin)
+                throw new Error('Tool has no associated plugin');
+            const res = await fetch(`${tool.plugin.endpoint}/tools/${tool.name}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(inputJson),
+                signal: AbortSignal.timeout(tool.plugin.timeoutMs),
+            });
+            outputJson = await res.json();
+            if (!res.ok)
+                status = 'error';
+        }
+        catch (err) {
+            status = 'error';
+            errorMessage = err instanceof Error ? err.message : String(err);
+        }
+        const durationMs = Date.now() - start;
+        await this.prisma.toolExecutionLog.create({
+            data: {
+                toolId: id,
+                userId,
+                inputJson: JSON.stringify(inputJson),
+                outputJson: outputJson ? JSON.stringify(outputJson) : null,
+                status,
+                durationMs,
+                errorMessage,
+            },
+        });
+        return { status, outputJson, durationMs, errorMessage };
+    }
+    async getCategories() {
+        return this.prisma.toolCategory.findMany({ orderBy: { name: 'asc' } });
+    }
+};
+exports.ToolsService = ToolsService;
+exports.ToolsService = ToolsService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], ToolsService);
+
+
+/***/ }),
+/* 39 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c, _d, _e, _f, _g;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ToolsController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const tools_service_1 = __webpack_require__(38);
+const tools_dto_1 = __webpack_require__(40);
+let ToolsController = class ToolsController {
+    constructor(toolsService) {
+        this.toolsService = toolsService;
+    }
+    findAll(query) {
+        return this.toolsService.findAll(query);
+    }
+    getCategories() {
+        return this.toolsService.getCategories();
+    }
+    findOne(id) {
+        return this.toolsService.findOne(id);
+    }
+    create(dto, req) {
+        return this.toolsService.create(dto, req.user?.id);
+    }
+    update(id, dto) {
+        return this.toolsService.update(id, dto);
+    }
+    remove(id) {
+        return this.toolsService.remove(id);
+    }
+    execute(id, dto, req) {
+        return this.toolsService.execute(id, dto.inputJson, req.user?.id);
+    }
+};
+exports.ToolsController = ToolsController;
+tslib_1.__decorate([
+    (0, common_1.Get)(),
+    (0, swagger_1.ApiOperation)({ summary: 'List all tools' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_b = typeof tools_dto_1.ToolQueryDto !== "undefined" && tools_dto_1.ToolQueryDto) === "function" ? _b : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "findAll", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('categories'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get all tool categories' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "getCategories", null);
+tslib_1.__decorate([
+    (0, common_1.Get)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get tool by ID' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "findOne", null);
+tslib_1.__decorate([
+    (0, common_1.Post)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create a new tool' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_c = typeof tools_dto_1.CreateToolDto !== "undefined" && tools_dto_1.CreateToolDto) === "function" ? _c : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "create", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update a tool' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, typeof (_e = typeof tools_dto_1.UpdateToolDto !== "undefined" && tools_dto_1.UpdateToolDto) === "function" ? _e : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "update", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Soft-delete a tool' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "remove", null);
+tslib_1.__decorate([
+    (0, common_1.Post)(':id/execute'),
+    (0, swagger_1.ApiOperation)({ summary: 'Execute a tool and capture the execution log' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__param(2, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, typeof (_f = typeof tools_dto_1.ExecuteToolDto !== "undefined" && tools_dto_1.ExecuteToolDto) === "function" ? _f : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], ToolsController.prototype, "execute", null);
+exports.ToolsController = ToolsController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Tools'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('tools'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof tools_service_1.ToolsService !== "undefined" && tools_service_1.ToolsService) === "function" ? _a : Object])
+], ToolsController);
+
+
+/***/ }),
+/* 40 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ExecuteToolDto = exports.ToolQueryDto = exports.UpdateToolDto = exports.CreateToolDto = void 0;
+const tslib_1 = __webpack_require__(1);
+const class_validator_1 = __webpack_require__(26);
+const swagger_1 = __webpack_require__(4);
+class CreateToolDto {
+}
+exports.CreateToolDto = CreateToolDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'Get Weather' }),
+    (0, class_validator_1.IsString)(),
+    tslib_1.__metadata("design:type", String)
+], CreateToolDto.prototype, "name", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateToolDto.prototype, "description", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateToolDto.prototype, "categoryId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateToolDto.prototype, "pluginId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'JSON Schema for input' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateToolDto.prototype, "inputSchemaJson", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'JSON Schema for output' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateToolDto.prototype, "outputSchemaJson", void 0);
+class UpdateToolDto extends (0, swagger_1.PartialType)(CreateToolDto) {
+}
+exports.UpdateToolDto = UpdateToolDto;
+class ToolQueryDto {
+}
+exports.ToolQueryDto = ToolQueryDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ToolQueryDto.prototype, "search", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ToolQueryDto.prototype, "categoryId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ToolQueryDto.prototype, "pluginId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ToolQueryDto.prototype, "page", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ToolQueryDto.prototype, "pageSize", void 0);
+class ExecuteToolDto {
+}
+exports.ExecuteToolDto = ExecuteToolDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Input payload matching the tool input schema' }),
+    tslib_1.__metadata("design:type", Object)
+], ExecuteToolDto.prototype, "inputJson", void 0);
 
 
 /***/ })
