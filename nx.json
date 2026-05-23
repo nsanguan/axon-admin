@@ -95,5 +95,6 @@
         "unitTestRunner": "none"
       }
     }
-  }
+  },
+  "analytics": false
 }

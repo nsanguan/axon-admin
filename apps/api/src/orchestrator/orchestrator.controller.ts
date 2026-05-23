@@ -52,7 +52,7 @@ export class OrchestratorController {
 
   @Get('runs/:id/stream')
   @ApiOperation({ summary: 'SSE stream — stage completion events' })
-  stream(@Param('id') id: string, @Res() res: Response) {
+  stream(@Param('id') id: string, @Res() res: Response, @Req() req: import('express').Request) {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');

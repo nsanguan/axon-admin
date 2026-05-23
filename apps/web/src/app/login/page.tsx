@@ -31,6 +31,8 @@ export default function LoginPage() {
       const res = await apiClient.post('/auth/login', data);
       localStorage.setItem('accessToken', res.data.accessToken);
       localStorage.setItem('refreshToken', res.data.refreshToken);
+      // Set cookie so Next.js middleware can detect authenticated state
+      document.cookie = `axon_access_token=1; path=/; SameSite=Strict; max-age=${15 * 60}`;
       toast.success('Logged in successfully');
       router.push('/dashboard');
     } catch {

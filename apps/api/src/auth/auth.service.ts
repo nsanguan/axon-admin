@@ -70,7 +70,7 @@ export class AuthService {
     if (existing) throw new ConflictException('Email already registered');
 
     const user = await this.usersService.createUser(dto);
-    const tokens = await this.generateTokens(user.id, user.email);
+    const tokens = await this.generateTokens(user.id as string, user.email as string);
     return { ...tokens, user: this.usersService.sanitize(user) };
   }
 

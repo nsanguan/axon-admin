@@ -117,7 +117,3 @@ export default function SettingsPage() {
     </AppShell>
   );
 }
-      <p className="text-[var(--muted-foreground)]">Coming soon — Phase implementation in progress.</p>
-    </AppShell>
-  );
-}

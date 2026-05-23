@@ -92,7 +92,7 @@ export class OrchestratorService {
 
     const stageOutputs: Record<string, unknown>[] = [];
 
-    const stageInputs = [
+    const stageInputs: { prompt: string; context: unknown; user_id: string }[] = [
       { prompt: dto.prompt, context: dto.contextJson ? JSON.parse(dto.contextJson) : {}, user_id: 'system' },
     ];
 
@@ -138,7 +138,7 @@ export class OrchestratorService {
 
         // Build input for next stage
         if (i + 1 < STAGE_DEFS.length) {
-          stageInputs.push(output);
+          stageInputs.push({ prompt: String(output['summary'] ?? dto.prompt), context: output, user_id: 'system' });
         }
 
         await this.prisma.orchestratorStage.update({

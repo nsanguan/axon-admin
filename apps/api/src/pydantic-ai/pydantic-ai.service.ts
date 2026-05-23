@@ -150,8 +150,8 @@ export class PydanticAiService {
       const tool = tools[i];
       const toolCallId = `call_${crypto.randomUUID().slice(0, 8)}`;
       messages.push(
-        { sequenceOrder: messages.length + 1, messageKind: 'response', partKind: 'tool-call', contentJson: JSON.stringify({ args: {} }), toolName: tool.name, toolCallId },
-        { sequenceOrder: messages.length + 1, messageKind: 'request', partKind: 'tool-return', contentJson: JSON.stringify({ result: { rows: 42 } }), toolName: tool.name, toolCallId },
+        { sequenceOrder: messages.length + 1, messageKind: 'response', partKind: 'tool-call', contentJson: JSON.stringify({ args: {}, toolName: tool.name, toolCallId }) },
+        { sequenceOrder: messages.length + 1, messageKind: 'request', partKind: 'tool-return', contentJson: JSON.stringify({ result: { rows: 42 }, toolName: tool.name, toolCallId }) },
       );
       await new Promise((r) => setTimeout(r, 100 + Math.random() * 400));
       for (const msg of messages.slice(-2)) {

@@ -110,7 +110,3 @@ export default function UsersPage() {
     </AppShell>
   );
 }
-      <p className="text-[var(--muted-foreground)]">Coming soon — Phase implementation in progress.</p>
-    </AppShell>
-  );
-}
