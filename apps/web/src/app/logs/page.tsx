@@ -74,7 +74,7 @@ export default function LogsPage() {
                 <tr key={log.id} className="border-t border-[var(--border)] hover:bg-[var(--muted)]/40">
                   <td className="px-4 py-2 text-[var(--muted-foreground)]">{new Date(log.createdAt).toLocaleString()}</td>
                   {tab === 'audit' && <>
-                    <td className="px-4 py-2">{(log as Record<string, Record<string, string>>).user?.email || log.userId || '—'}</td>
+                    <td className="px-4 py-2">{(log as unknown as { user?: { email?: string }; userId?: string }).user?.email || log.userId || '—'}</td>
                     <td className="px-4 py-2">{log.action}</td>
                     <td className="px-4 py-2">{log.resourceType} {log.resourceId ? `(${log.resourceId.slice(0,8)}...)` : ''}</td>
                   </>}

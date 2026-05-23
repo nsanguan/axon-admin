@@ -24,6 +24,7 @@ import {
   ListFilter,
   Server,
   ShieldCheck,
+  Truck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
@@ -67,6 +68,7 @@ const navItems: NavItem[] = [
       { href: '/axon/orchestrator', icon: GitBranch, label: 'Orchestrator' },
       { href: '/axon/hitl', icon: HandMetal, label: 'HITL Queue' },
       { href: '/axon/experience', icon: BookOpen, label: 'Experience Ledger' },
+      { href: '/axon/supply-chain', icon: Truck, label: 'Supply Chain Plan' },
     ],
   },
   {

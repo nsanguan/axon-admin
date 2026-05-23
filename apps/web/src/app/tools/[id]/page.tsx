@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell } from '../../../components/layout/AppShell';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
@@ -64,13 +64,16 @@ export default function ToolDetailPage() {
 
   const { data: tool, isLoading } = useQuery<Tool>({
     queryKey: ['tool', id],
-    queryFn: () => apiClient.get(`/tools/${id}`).then((r) => r.data),
-    onSuccess: (t) => {
-      setForm(t);
-      setInputSchema(t.inputSchemaJson || '{}');
-      setOutputSchema(t.outputSchemaJson || '{}');
-    },
-  } as Parameters<typeof useQuery>[0]);
+    queryFn: (): Promise<Tool> => apiClient.get(`/tools/${id}`).then((r) => r.data as Tool),
+  });
+
+  useEffect(() => {
+    if (tool) {
+      setForm(tool);
+      setInputSchema(tool.inputSchemaJson || '{}');
+      setOutputSchema(tool.outputSchemaJson || '{}');
+    }
+  }, [tool]);
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Tool>) => apiClient.put(`/tools/${id}`, data).then((r) => r.data),

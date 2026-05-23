@@ -1,6 +1,8 @@
 import './global.css';
 import { Providers } from './providers';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'AXON Admin',
   description: 'AXON System Administration & Control Plane',

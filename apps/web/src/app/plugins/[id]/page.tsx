@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell } from '../../../components/layout/AppShell';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
@@ -42,12 +42,15 @@ export default function PluginDetailPage() {
 
   const { data: plugin, isLoading } = useQuery<Plugin>({
     queryKey: ['plugin', id],
-    queryFn: () => apiClient.get(`/plugins/${id}`).then((r) => r.data),
-    onSuccess: (p) => {
-      setForm(p);
-      setHeaders(p.headersJson || '{}');
-    },
-  } as Parameters<typeof useQuery>[0]);
+    queryFn: (): Promise<Plugin> => apiClient.get(`/plugins/${id}`).then((r) => r.data as Plugin),
+  });
+
+  useEffect(() => {
+    if (plugin) {
+      setForm(plugin);
+      setHeaders(plugin.headersJson || '{}');
+    }
+  }, [plugin]);
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Plugin>) => apiClient.put(`/plugins/${id}`, data).then((r) => r.data),

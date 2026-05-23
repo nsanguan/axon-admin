@@ -54,6 +54,21 @@ export class AxonController {
 
   // ── Experience Ledger ──────────────────────────────────────────────────
 
+  @Get('plan/demand')
+  getPlanDemand() {
+    return this.axonService.getPlanDemand();
+  }
+
+  @Get('plan/supply')
+  getPlanSupply() {
+    return this.axonService.getPlanSupply();
+  }
+
+  @Get('plan/allocation')
+  getPlanAllocation() {
+    return this.axonService.getPlanAllocation();
+  }
+
   @Get('experience')
   @ApiOperation({ summary: 'Browse experience ledger records' })
   getExperienceLedger(@Query() query: Record<string, string>) {

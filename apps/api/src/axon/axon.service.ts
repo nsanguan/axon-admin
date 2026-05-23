@@ -122,6 +122,22 @@ export class AxonService {
     return { message: decision === 'approve' ? 'Approved — pipeline resuming' : 'Rejected' };
   }
 
+  // ── Supply Chain Plan (axon_plan — read-only) ──────────────────────────────────
+  async getPlanDemand() {
+    // axon_plan.demand_forecasts — returns empty until secondary datasource is wired
+    return [];
+  }
+
+  async getPlanSupply() {
+    // axon_plan.supply_availability — returns empty until secondary datasource is wired
+    return [];
+  }
+
+  async getPlanAllocation() {
+    // axon_plan.allocation_decisions — returns empty until secondary datasource is wired
+    return [];
+  }
+
   // ── Experience Ledger (axon_brain mock — real data from cross-schema query) ──
   async getExperienceLedger(query: { search?: string; page?: string; pageSize?: string }) {
     const page = Math.max(1, parseInt(query.page || '1'));

@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell } from '../../../components/layout/AppShell';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
@@ -37,9 +37,10 @@ export default function ProfilePage() {
 
   const { data: me } = useQuery<Me>({
     queryKey: ['me'],
-    queryFn: () => apiClient.get('/users/me').then((r) => r.data),
-    onSuccess: (u: Me) => setName(u.name || ''),
-  } as Parameters<typeof useQuery>[0]);
+    queryFn: (): Promise<Me> => apiClient.get('/users/me').then((r) => r.data as Me),
+  });
+
+  useEffect(() => { if (me) setName(me.name || ''); }, [me]);
 
   const { data: sessions } = useQuery<Session[]>({
     queryKey: ['my-sessions'],

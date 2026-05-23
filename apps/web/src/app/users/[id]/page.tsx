@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell } from '../../../components/layout/AppShell';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../lib/api';
 import { toast } from 'sonner';
@@ -39,9 +39,12 @@ export default function UserDetailPage() {
 
   const { data: user, isLoading } = useQuery<UserDetail>({
     queryKey: ['user', id],
-    queryFn: () => apiClient.get(`/users/${id}`).then((r) => r.data),
-    onSuccess: (u: UserDetail) => setForm({ name: u.name, email: u.email, status: u.status }),
-  } as Parameters<typeof useQuery>[0]);
+    queryFn: (): Promise<UserDetail> => apiClient.get(`/users/${id}`).then((r) => r.data as UserDetail),
+  });
+
+  useEffect(() => {
+    if (user) setForm({ name: user.name, email: user.email, status: user.status });
+  }, [user]);
 
   const { data: sessions } = useQuery<Session[]>({
     queryKey: ['user-sessions', id],
