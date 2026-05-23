@@ -17,6 +17,9 @@ import {
   ChevronRight,
   GitBranch,
   Bot,
+  HandMetal,
+  BookOpen,
+  UserCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
@@ -44,8 +47,24 @@ const navItems: NavItem[] = [
   { href: '/tokens', icon: Shield, label: 'Tokens & Security' },
   { href: '/logs', icon: Activity, label: 'Logs & Monitoring' },
   { href: '/notifications', icon: Bell, label: 'Notifications' },
-  { href: '/axon', icon: Brain, label: 'AXON System' },
-  { href: '/users', icon: Users, label: 'Users & Roles' },
+  {
+    href: '/axon',
+    icon: Brain,
+    label: 'AXON System',
+    children: [
+      { href: '/axon/orchestrator', icon: GitBranch, label: 'Orchestrator' },
+      { href: '/axon/hitl', icon: HandMetal, label: 'HITL Queue' },
+      { href: '/axon/experience', icon: BookOpen, label: 'Experience Ledger' },
+    ],
+  },
+  {
+    href: '/users',
+    icon: Users,
+    label: 'Users & Roles',
+    children: [
+      { href: '/users/profile', icon: UserCircle, label: 'My Profile' },
+    ],
+  },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
