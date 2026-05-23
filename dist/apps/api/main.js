@@ -55,6 +55,8 @@ const testing_module_1 = __webpack_require__(41);
 const tokens_module_1 = __webpack_require__(45);
 const logs_module_1 = __webpack_require__(50);
 const notifications_module_1 = __webpack_require__(53);
+const settings_module_1 = __webpack_require__(56);
+const rbac_module_1 = __webpack_require__(59);
 const jwt_auth_guard_1 = __webpack_require__(12);
 let AppModule = class AppModule {
 };
@@ -82,6 +84,8 @@ exports.AppModule = AppModule = tslib_1.__decorate([
             tokens_module_1.TokensModule,
             logs_module_1.LogsModule,
             notifications_module_1.NotificationsModule,
+            settings_module_1.SettingsModule,
+            rbac_module_1.RbacModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
@@ -2438,6 +2442,431 @@ exports.NotificationsController = NotificationsController = tslib_1.__decorate([
     (0, common_1.Controller)('notifications'),
     tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof notifications_service_1.NotificationsService !== "undefined" && notifications_service_1.NotificationsService) === "function" ? _a : Object])
 ], NotificationsController);
+
+
+/***/ }),
+/* 56 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SettingsModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const settings_service_1 = __webpack_require__(57);
+const settings_controller_1 = __webpack_require__(58);
+let SettingsModule = class SettingsModule {
+};
+exports.SettingsModule = SettingsModule;
+exports.SettingsModule = SettingsModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [settings_service_1.SettingsService],
+        controllers: [settings_controller_1.SettingsController],
+    })
+], SettingsModule);
+
+
+/***/ }),
+/* 57 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SettingsService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let SettingsService = class SettingsService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findByNamespace(namespace) {
+        return this.prisma.setting.findMany({
+            where: { namespace },
+            orderBy: { key: 'asc' },
+        });
+    }
+    async upsert(namespace, key, valueJson, userId) {
+        return this.prisma.setting.upsert({
+            where: { namespace_key: { namespace, key } },
+            update: { valueJson, updatedBy: userId },
+            create: { namespace, key, valueJson, updatedBy: userId },
+        });
+    }
+    async findAllEnvironments() {
+        return this.prisma.environment.findMany({
+            orderBy: { createdAt: 'asc' },
+            include: { _count: { select: { envVariables: true } } },
+        });
+    }
+    async createEnvironment(name, slug) {
+        return this.prisma.environment.create({ data: { name, slug } });
+    }
+    async findEnvVars(environmentId) {
+        return this.prisma.envVariable.findMany({
+            where: { environmentId },
+            select: {
+                id: true,
+                key: true,
+                isSecret: true,
+                createdAt: true,
+            },
+        });
+    }
+    async findFeatureFlags() {
+        return this.prisma.featureFlag.findMany({
+            orderBy: { key: 'asc' },
+            include: { overrides: true },
+        });
+    }
+    async toggleFeatureFlag(id, isActive) {
+        return this.prisma.featureFlag.update({ where: { id }, data: { isActive } });
+    }
+};
+exports.SettingsService = SettingsService;
+exports.SettingsService = SettingsService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], SettingsService);
+
+
+/***/ }),
+/* 58 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.SettingsController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const settings_service_1 = __webpack_require__(57);
+let SettingsController = class SettingsController {
+    constructor(settingsService) {
+        this.settingsService = settingsService;
+    }
+    findByNamespace(namespace) {
+        return this.settingsService.findByNamespace(namespace || 'general');
+    }
+    upsert(body, req) {
+        return this.settingsService.upsert(body.namespace, body.key, body.valueJson, req.user?.id);
+    }
+    findEnvironments() {
+        return this.settingsService.findAllEnvironments();
+    }
+    createEnvironment(body) {
+        return this.settingsService.createEnvironment(body.name, body.slug);
+    }
+    findEnvVars(id) {
+        return this.settingsService.findEnvVars(id);
+    }
+    findFeatureFlags() {
+        return this.settingsService.findFeatureFlags();
+    }
+    toggleFlag(id, body) {
+        return this.settingsService.toggleFeatureFlag(id, body.isActive);
+    }
+};
+exports.SettingsController = SettingsController;
+tslib_1.__decorate([
+    (0, common_1.Get)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get settings by namespace' }),
+    tslib_1.__param(0, (0, common_1.Query)('namespace')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "findByNamespace", null);
+tslib_1.__decorate([
+    (0, common_1.Post)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Upsert a setting value' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "upsert", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('environments'),
+    (0, swagger_1.ApiOperation)({ summary: 'List environments' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "findEnvironments", null);
+tslib_1.__decorate([
+    (0, common_1.Post)('environments'),
+    (0, swagger_1.ApiOperation)({ summary: 'Create environment' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "createEnvironment", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('environments/:id/vars'),
+    (0, swagger_1.ApiOperation)({ summary: 'List env variables for environment' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "findEnvVars", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('feature-flags'),
+    (0, swagger_1.ApiOperation)({ summary: 'List all feature flags' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "findFeatureFlags", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)('feature-flags/:id/toggle'),
+    (0, swagger_1.ApiOperation)({ summary: 'Toggle feature flag active state' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], SettingsController.prototype, "toggleFlag", null);
+exports.SettingsController = SettingsController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Settings'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('settings'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof settings_service_1.SettingsService !== "undefined" && settings_service_1.SettingsService) === "function" ? _a : Object])
+], SettingsController);
+
+
+/***/ }),
+/* 59 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RbacModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const rbac_service_1 = __webpack_require__(60);
+const rbac_controller_1 = __webpack_require__(61);
+let RbacModule = class RbacModule {
+};
+exports.RbacModule = RbacModule;
+exports.RbacModule = RbacModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [rbac_service_1.RbacService],
+        controllers: [rbac_controller_1.RbacController],
+    })
+], RbacModule);
+
+
+/***/ }),
+/* 60 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RbacService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let RbacService = class RbacService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    // Users (admin view)
+    async findUsers(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '20');
+        const where = {};
+        if (query.search) {
+            where['OR'] = [
+                { email: { contains: query.search, mode: 'insensitive' } },
+                { name: { contains: query.search, mode: 'insensitive' } },
+            ];
+        }
+        const [data, total] = await Promise.all([
+            this.prisma.user.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    isActive: true,
+                    mfaSecret: true,
+                    createdAt: true,
+                    userRoles: { include: { role: { select: { name: true } } } },
+                },
+            }),
+            this.prisma.user.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async toggleUserActive(id, isActive) {
+        return this.prisma.user.update({
+            where: { id },
+            data: { isActive },
+            select: { id: true, email: true, isActive: true },
+        });
+    }
+    // Roles
+    async findRoles() {
+        return this.prisma.role.findMany({
+            include: {
+                _count: { select: { userRoles: true, rolePermissions: true } },
+                rolePermissions: { include: { permission: true } },
+            },
+            orderBy: { name: 'asc' },
+        });
+    }
+    async createRole(name, description) {
+        return this.prisma.role.create({ data: { name, description } });
+    }
+    async deleteRole(id) {
+        await this.prisma.role.delete({ where: { id } });
+        return { success: true };
+    }
+    async assignRole(userId, roleId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.NotFoundException('User not found');
+        return this.prisma.userRole.upsert({
+            where: { userId_roleId: { userId, roleId } },
+            update: {},
+            create: { userId, roleId },
+        });
+    }
+    async removeRole(userId, roleId) {
+        await this.prisma.userRole.delete({
+            where: { userId_roleId: { userId, roleId } },
+        });
+        return { success: true };
+    }
+    // Permissions
+    async findPermissions() {
+        return this.prisma.permission.findMany({ orderBy: [{ resource: 'asc' }, { action: 'asc' }] });
+    }
+};
+exports.RbacService = RbacService;
+exports.RbacService = RbacService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], RbacService);
+
+
+/***/ }),
+/* 61 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.RbacController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const rbac_service_1 = __webpack_require__(60);
+let RbacController = class RbacController {
+    constructor(rbacService) {
+        this.rbacService = rbacService;
+    }
+    findUsers(query) {
+        return this.rbacService.findUsers(query);
+    }
+    toggleUser(id, body) {
+        return this.rbacService.toggleUserActive(id, body.isActive);
+    }
+    findRoles() {
+        return this.rbacService.findRoles();
+    }
+    createRole(body) {
+        return this.rbacService.createRole(body.name, body.description);
+    }
+    deleteRole(id) {
+        return this.rbacService.deleteRole(id);
+    }
+    assignRole(userId, roleId) {
+        return this.rbacService.assignRole(userId, roleId);
+    }
+    removeRole(userId, roleId) {
+        return this.rbacService.removeRole(userId, roleId);
+    }
+    findPermissions() {
+        return this.rbacService.findPermissions();
+    }
+};
+exports.RbacController = RbacController;
+tslib_1.__decorate([
+    (0, common_1.Get)('users'),
+    (0, swagger_1.ApiOperation)({ summary: 'List all users (admin)' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_b = typeof Record !== "undefined" && Record) === "function" ? _b : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "findUsers", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)('users/:id/toggle-active'),
+    (0, swagger_1.ApiOperation)({ summary: 'Toggle user active state' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "toggleUser", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('roles'),
+    (0, swagger_1.ApiOperation)({ summary: 'List all roles' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "findRoles", null);
+tslib_1.__decorate([
+    (0, common_1.Post)('roles'),
+    (0, swagger_1.ApiOperation)({ summary: 'Create role' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "createRole", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)('roles/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Delete role' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "deleteRole", null);
+tslib_1.__decorate([
+    (0, common_1.Post)('users/:userId/roles/:roleId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Assign role to user' }),
+    tslib_1.__param(0, (0, common_1.Param)('userId')),
+    tslib_1.__param(1, (0, common_1.Param)('roleId')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "assignRole", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)('users/:userId/roles/:roleId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Remove role from user' }),
+    tslib_1.__param(0, (0, common_1.Param)('userId')),
+    tslib_1.__param(1, (0, common_1.Param)('roleId')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "removeRole", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('permissions'),
+    (0, swagger_1.ApiOperation)({ summary: 'List all permissions' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], RbacController.prototype, "findPermissions", null);
+exports.RbacController = RbacController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Users & RBAC'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('rbac'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof rbac_service_1.RbacService !== "undefined" && rbac_service_1.RbacService) === "function" ? _a : Object])
+], RbacController);
 
 
 /***/ })
