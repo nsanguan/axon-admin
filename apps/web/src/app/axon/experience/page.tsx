@@ -33,9 +33,10 @@ export default function ExperienceLedgerPage() {
 
   const { data, isLoading } = useQuery<ExperienceResponse>({
     queryKey: ['experience', page, search],
-    queryFn: () => apiClient.get('/axon/experience', { params: { page, pageSize: 20, search: search || undefined } }).then((r) => r.data),
-    keepPreviousData: true,
-  } as Parameters<typeof useQuery>[0]);
+    queryFn: (): Promise<ExperienceResponse> =>
+      apiClient.get('/axon/experience', { params: { page, pageSize: 20, search: search || undefined } }).then((r) => r.data as ExperienceResponse),
+    placeholderData: (prev) => prev,
+  });
 
   const runs = data?.data || [];
   const total = data?.total || 0;
