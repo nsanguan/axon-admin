@@ -26,6 +26,8 @@ RUN node node_modules/nx/dist/bin/nx.js build api --configuration=production
 # ─── Stage 2: Runner ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 ENV NODE_ENV=production
