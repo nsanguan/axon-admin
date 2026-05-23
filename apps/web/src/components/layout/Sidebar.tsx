@@ -21,6 +21,9 @@ import {
   BookOpen,
   UserCircle,
   Radio,
+  ListFilter,
+  Server,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
@@ -53,6 +56,7 @@ const navItems: NavItem[] = [
     label: 'Notifications',
     children: [
       { href: '/notifications/channels', icon: Radio, label: 'Channel Config' },
+      { href: '/notifications/rules', icon: ListFilter, label: 'Rules' },
     ],
   },
   {
@@ -71,9 +75,17 @@ const navItems: NavItem[] = [
     label: 'Users & Roles',
     children: [
       { href: '/users/profile', icon: UserCircle, label: 'My Profile' },
+      { href: '/users/roles', icon: ShieldCheck, label: 'Roles & Permissions' },
     ],
   },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  {
+    href: '/settings',
+    icon: Settings,
+    label: 'Settings',
+    children: [
+      { href: '/settings/environments', icon: Server, label: 'Environments' },
+    ],
+  },
 ];
 
 export function Sidebar() {
