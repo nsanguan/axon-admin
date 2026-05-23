@@ -73,6 +73,7 @@
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
     "@hookform/resolvers": "^5.4.0",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.0",

@@ -14,6 +14,7 @@ import logfire
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from redis_client import init_redis_pool, close_redis_pool
 from agents.data_analysis_agent import AGENT_META as DATA_META, data_analysis_agent, DataDeps
 from agents.code_review_agent import AGENT_META as CODE_META, code_review_agent, CodeReviewDeps
 from agents.research_agent import AGENT_META as RESEARCH_META, research_agent, ResearchDeps
@@ -36,9 +37,11 @@ AGENT_REGISTRY: dict[str, dict] = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_redis_pool()
     print("AXON AI Tester sidecar starting up")
     yield
     print("AXON AI Tester sidecar shutting down")
+    await close_redis_pool()
 
 
 app = FastAPI(

@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RedisModule } from '../redis/redis.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
@@ -33,6 +35,15 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
         limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
       },
     ]),
+    // ── External Redis via ioredis ─────────────────────────────────────
+    RedisModule,
+    // ── BullMQ — queue workers backed by external Redis ───────────────
+    BullModule.forRoot({
+      connection: {
+        url: process.env.REDIS_URL ?? 'redis://localhost:6379',
+        maxRetriesPerRequest: null, // Required by BullMQ
+      },
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,

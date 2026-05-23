@@ -10,3 +10,4 @@ httpx>=0.28.0
 anyio>=4.7.0
 pytest>=8.3.0
 pytest-anyio>=0.0.0
+redis[asyncio]>=5.2.0
