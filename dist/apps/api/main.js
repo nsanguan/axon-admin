@@ -48,6 +48,7 @@ const app_service_1 = __webpack_require__(10);
 const prisma_module_1 = __webpack_require__(14);
 const auth_module_1 = __webpack_require__(17);
 const users_module_1 = __webpack_require__(29);
+const dashboard_module_1 = __webpack_require__(30);
 const jwt_auth_guard_1 = __webpack_require__(12);
 let AppModule = class AppModule {
 };
@@ -68,6 +69,7 @@ exports.AppModule = AppModule = tslib_1.__decorate([
             prisma_module_1.PrismaModule,
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
+            dashboard_module_1.DashboardModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
@@ -692,6 +694,137 @@ exports.UsersModule = UsersModule = tslib_1.__decorate([
         exports: [users_service_1.UsersService],
     })
 ], UsersModule);
+
+
+/***/ }),
+/* 30 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DashboardModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const dashboard_service_1 = __webpack_require__(31);
+const dashboard_controller_1 = __webpack_require__(32);
+let DashboardModule = class DashboardModule {
+};
+exports.DashboardModule = DashboardModule;
+exports.DashboardModule = DashboardModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [dashboard_service_1.DashboardService],
+        controllers: [dashboard_controller_1.DashboardController],
+    })
+], DashboardModule);
+
+
+/***/ }),
+/* 31 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DashboardService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let DashboardService = class DashboardService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async getMetrics() {
+        const [pluginCount, toolCount, totalExecutions, failedExecutions, systemLogErrors, activeUsers,] = await Promise.all([
+            this.prisma.plugin.count({ where: { deletedAt: null, status: 'active' } }),
+            this.prisma.tool.count({ where: { deletedAt: null } }),
+            this.prisma.toolExecutionLog.count(),
+            this.prisma.toolExecutionLog.count({ where: { status: 'error' } }),
+            this.prisma.systemLog.count({ where: { level: 'ERROR' } }),
+            this.prisma.user.count({ where: { isActive: true } }),
+        ]);
+        const errorRate = totalExecutions > 0
+            ? Math.round((failedExecutions / totalExecutions) * 100 * 10) / 10
+            : 0;
+        return {
+            plugins: { active: pluginCount },
+            tools: { total: toolCount },
+            requests: { total: totalExecutions, failed: failedExecutions, errorRate },
+            system: { errors: systemLogErrors },
+            users: { active: activeUsers },
+            updatedAt: new Date().toISOString(),
+        };
+    }
+    async getDailyUsage(days = 7) {
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+        const logs = await this.prisma.toolExecutionLog.findMany({
+            where: { createdAt: { gte: since } },
+            select: { createdAt: true, status: true },
+        });
+        const map = {};
+        for (const log of logs) {
+            const day = log.createdAt.toISOString().slice(0, 10);
+            if (!map[day])
+                map[day] = { date: day, total: 0, errors: 0 };
+            map[day].total++;
+            if (log.status === 'error')
+                map[day].errors++;
+        }
+        return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+    }
+};
+exports.DashboardService = DashboardService;
+exports.DashboardService = DashboardService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], DashboardService);
+
+
+/***/ }),
+/* 32 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DashboardController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const dashboard_service_1 = __webpack_require__(31);
+let DashboardController = class DashboardController {
+    constructor(dashboardService) {
+        this.dashboardService = dashboardService;
+    }
+    getMetrics() {
+        return this.dashboardService.getMetrics();
+    }
+    getDailyUsage(days) {
+        return this.dashboardService.getDailyUsage(days ? parseInt(days) : 7);
+    }
+};
+exports.DashboardController = DashboardController;
+tslib_1.__decorate([
+    (0, common_1.Get)('metrics'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get KPI metrics for dashboard widgets' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], DashboardController.prototype, "getMetrics", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('daily-usage'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get daily usage chart data' }),
+    tslib_1.__param(0, (0, common_1.Query)('days')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], DashboardController.prototype, "getDailyUsage", null);
+exports.DashboardController = DashboardController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Dashboard'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('dashboard'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof dashboard_service_1.DashboardService !== "undefined" && dashboard_service_1.DashboardService) === "function" ? _a : Object])
+], DashboardController);
 
 
 /***/ })
