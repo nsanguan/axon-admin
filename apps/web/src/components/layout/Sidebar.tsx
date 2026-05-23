@@ -20,6 +20,7 @@ import {
   HandMetal,
   BookOpen,
   UserCircle,
+  Radio,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
@@ -46,7 +47,14 @@ const navItems: NavItem[] = [
   },
   { href: '/tokens', icon: Shield, label: 'Tokens & Security' },
   { href: '/logs', icon: Activity, label: 'Logs & Monitoring' },
-  { href: '/notifications', icon: Bell, label: 'Notifications' },
+  {
+    href: '/notifications',
+    icon: Bell,
+    label: 'Notifications',
+    children: [
+      { href: '/notifications/channels', icon: Radio, label: 'Channel Config' },
+    ],
+  },
   {
     href: '/axon',
     icon: Brain,
