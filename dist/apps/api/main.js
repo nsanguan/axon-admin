@@ -51,6 +51,8 @@ const users_module_1 = __webpack_require__(29);
 const dashboard_module_1 = __webpack_require__(30);
 const plugins_module_1 = __webpack_require__(33);
 const tools_module_1 = __webpack_require__(37);
+const testing_module_1 = __webpack_require__(41);
+const tokens_module_1 = __webpack_require__(45);
 const jwt_auth_guard_1 = __webpack_require__(12);
 let AppModule = class AppModule {
 };
@@ -74,6 +76,8 @@ exports.AppModule = AppModule = tslib_1.__decorate([
             dashboard_module_1.DashboardModule,
             plugins_module_1.PluginsModule,
             tools_module_1.ToolsModule,
+            testing_module_1.TestingModule,
+            tokens_module_1.TokensModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
@@ -1496,6 +1500,628 @@ tslib_1.__decorate([
     (0, swagger_1.ApiProperty)({ description: 'Input payload matching the tool input schema' }),
     tslib_1.__metadata("design:type", Object)
 ], ExecuteToolDto.prototype, "inputJson", void 0);
+
+
+/***/ }),
+/* 41 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TestingModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const testing_service_1 = __webpack_require__(42);
+const testing_controller_1 = __webpack_require__(43);
+let TestingModule = class TestingModule {
+};
+exports.TestingModule = TestingModule;
+exports.TestingModule = TestingModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [testing_service_1.TestingService],
+        controllers: [testing_controller_1.TestingController],
+    })
+], TestingModule);
+
+
+/***/ }),
+/* 42 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TestingService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let TestingService = class TestingService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findAllCollections() {
+        return this.prisma.testCollection.findMany({
+            orderBy: { createdAt: 'desc' },
+            include: { _count: { select: { requests: true } } },
+        });
+    }
+    async createCollection(dto, userId) {
+        return this.prisma.testCollection.create({
+            data: { ...dto, createdBy: userId },
+        });
+    }
+    async deleteCollection(id) {
+        await this.prisma.testCollection.delete({ where: { id } });
+        return { success: true };
+    }
+    async findRequests(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '20');
+        const where = {};
+        if (query.collectionId)
+            where['collectionId'] = query.collectionId;
+        if (query.search) {
+            where['OR'] = [{ name: { contains: query.search, mode: 'insensitive' } }];
+        }
+        const [data, total] = await Promise.all([
+            this.prisma.testRequest.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                include: { collection: { select: { name: true } } },
+            }),
+            this.prisma.testRequest.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async findOneRequest(id) {
+        const req = await this.prisma.testRequest.findUnique({
+            where: { id },
+            include: {
+                collection: true,
+                executions: { orderBy: { createdAt: 'desc' }, take: 20 },
+            },
+        });
+        if (!req)
+            throw new common_1.NotFoundException('Test request not found');
+        return req;
+    }
+    async createRequest(dto, _userId) {
+        return this.prisma.testRequest.create({
+            data: {
+                collectionId: dto.collectionId,
+                name: dto.name,
+                protocol: dto.protocol,
+                url: dto.endpoint || '',
+                headersJson: dto.headersJson,
+                bodyJson: dto.bodyJson,
+            },
+        });
+    }
+    async updateRequest(id, dto) {
+        const data = {};
+        if (dto.name !== undefined)
+            data['name'] = dto.name;
+        if (dto.protocol !== undefined)
+            data['protocol'] = dto.protocol;
+        if (dto.endpoint !== undefined)
+            data['url'] = dto.endpoint;
+        if (dto.headersJson !== undefined)
+            data['headersJson'] = dto.headersJson;
+        if (dto.bodyJson !== undefined)
+            data['bodyJson'] = dto.bodyJson;
+        return this.prisma.testRequest.update({ where: { id }, data });
+    }
+    async deleteRequest(id) {
+        await this.prisma.testRequest.delete({ where: { id } });
+        return { success: true };
+    }
+    async executeRequest(id, dto, userId) {
+        const req = await this.findOneRequest(id);
+        const endpoint = dto.endpoint || req.url || '';
+        const headers = JSON.parse(dto.headersJson || req.headersJson || '{}');
+        const body = dto.bodyJson || req.bodyJson;
+        const start = Date.now();
+        let responseJson = null;
+        let errorMessage;
+        let responseStatus = null;
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: body || undefined,
+                signal: AbortSignal.timeout(30000),
+            });
+            responseStatus = res.status;
+            const text = await res.text();
+            try {
+                responseJson = JSON.parse(text);
+            }
+            catch {
+                responseJson = text;
+            }
+        }
+        catch (err) {
+            errorMessage = err instanceof Error ? err.message : String(err);
+        }
+        const durationMs = Date.now() - start;
+        const execution = await this.prisma.testExecution.create({
+            data: {
+                requestId: id,
+                userId,
+                responseStatus,
+                responseBody: JSON.stringify(responseJson),
+                durationMs,
+                errorMessage,
+            },
+        });
+        return { ...execution, responseJson };
+    }
+};
+exports.TestingService = TestingService;
+exports.TestingService = TestingService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], TestingService);
+
+
+/***/ }),
+/* 43 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TestingController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const testing_service_1 = __webpack_require__(42);
+const testing_dto_1 = __webpack_require__(44);
+let TestingController = class TestingController {
+    constructor(testingService) {
+        this.testingService = testingService;
+    }
+    findCollections() {
+        return this.testingService.findAllCollections();
+    }
+    createCollection(dto, req) {
+        return this.testingService.createCollection(dto, req.user?.id);
+    }
+    deleteCollection(id) {
+        return this.testingService.deleteCollection(id);
+    }
+    findRequests(query) {
+        return this.testingService.findRequests(query);
+    }
+    findOneRequest(id) {
+        return this.testingService.findOneRequest(id);
+    }
+    createRequest(dto, req) {
+        return this.testingService.createRequest(dto, req.user?.id);
+    }
+    updateRequest(id, dto) {
+        return this.testingService.updateRequest(id, dto);
+    }
+    deleteRequest(id) {
+        return this.testingService.deleteRequest(id);
+    }
+    execute(id, dto, req) {
+        return this.testingService.executeRequest(id, dto, req.user?.id);
+    }
+};
+exports.TestingController = TestingController;
+tslib_1.__decorate([
+    (0, common_1.Get)('collections'),
+    (0, swagger_1.ApiOperation)({ summary: 'List all test collections' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "findCollections", null);
+tslib_1.__decorate([
+    (0, common_1.Post)('collections'),
+    (0, swagger_1.ApiOperation)({ summary: 'Create test collection' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_b = typeof testing_dto_1.CreateTestCollectionDto !== "undefined" && testing_dto_1.CreateTestCollectionDto) === "function" ? _b : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "createCollection", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)('collections/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Delete test collection' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "deleteCollection", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('requests'),
+    (0, swagger_1.ApiOperation)({ summary: 'List test requests' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_d = typeof testing_dto_1.TestQueryDto !== "undefined" && testing_dto_1.TestQueryDto) === "function" ? _d : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "findRequests", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('requests/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get test request by ID with execution history' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "findOneRequest", null);
+tslib_1.__decorate([
+    (0, common_1.Post)('requests'),
+    (0, swagger_1.ApiOperation)({ summary: 'Create test request' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_e = typeof testing_dto_1.CreateTestRequestDto !== "undefined" && testing_dto_1.CreateTestRequestDto) === "function" ? _e : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "createRequest", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)('requests/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update test request' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, typeof (_g = typeof testing_dto_1.UpdateTestRequestDto !== "undefined" && testing_dto_1.UpdateTestRequestDto) === "function" ? _g : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "updateRequest", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)('requests/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Delete test request' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "deleteRequest", null);
+tslib_1.__decorate([
+    (0, common_1.Post)('requests/:id/execute'),
+    (0, swagger_1.ApiOperation)({ summary: 'Execute a test request and store the result' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Body)()),
+    tslib_1.__param(2, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, typeof (_h = typeof testing_dto_1.ExecuteTestDto !== "undefined" && testing_dto_1.ExecuteTestDto) === "function" ? _h : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TestingController.prototype, "execute", null);
+exports.TestingController = TestingController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Testing'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('testing'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof testing_service_1.TestingService !== "undefined" && testing_service_1.TestingService) === "function" ? _a : Object])
+], TestingController);
+
+
+/***/ }),
+/* 44 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TestQueryDto = exports.ExecuteTestDto = exports.UpdateTestRequestDto = exports.CreateTestRequestDto = exports.CreateTestCollectionDto = void 0;
+const tslib_1 = __webpack_require__(1);
+const class_validator_1 = __webpack_require__(26);
+const swagger_1 = __webpack_require__(4);
+class CreateTestCollectionDto {
+}
+exports.CreateTestCollectionDto = CreateTestCollectionDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsString)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestCollectionDto.prototype, "name", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestCollectionDto.prototype, "description", void 0);
+class CreateTestRequestDto {
+}
+exports.CreateTestRequestDto = CreateTestRequestDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsString)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "collectionId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)(),
+    (0, class_validator_1.IsString)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "name", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "description", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)({ enum: ['mcp', 'http', 'sse'] }),
+    (0, class_validator_1.IsIn)(['mcp', 'http', 'sse']),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "protocol", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "endpoint", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "method", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'JSON headers' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "headersJson", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'JSON body/payload' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateTestRequestDto.prototype, "bodyJson", void 0);
+class UpdateTestRequestDto extends (0, swagger_1.PartialType)(CreateTestRequestDto) {
+}
+exports.UpdateTestRequestDto = UpdateTestRequestDto;
+class ExecuteTestDto {
+}
+exports.ExecuteTestDto = ExecuteTestDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Override endpoint' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ExecuteTestDto.prototype, "endpoint", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Override headers JSON' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ExecuteTestDto.prototype, "headersJson", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Override body JSON' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], ExecuteTestDto.prototype, "bodyJson", void 0);
+class TestQueryDto {
+}
+exports.TestQueryDto = TestQueryDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], TestQueryDto.prototype, "collectionId", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], TestQueryDto.prototype, "search", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], TestQueryDto.prototype, "page", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], TestQueryDto.prototype, "pageSize", void 0);
+
+
+/***/ }),
+/* 45 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TokensModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const tokens_service_1 = __webpack_require__(46);
+const tokens_controller_1 = __webpack_require__(48);
+let TokensModule = class TokensModule {
+};
+exports.TokensModule = TokensModule;
+exports.TokensModule = TokensModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [tokens_service_1.TokensService],
+        controllers: [tokens_controller_1.TokensController],
+        exports: [tokens_service_1.TokensService],
+    })
+], TokensModule);
+
+
+/***/ }),
+/* 46 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TokensService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const crypto_1 = __webpack_require__(47);
+const prisma_service_1 = __webpack_require__(15);
+let TokensService = class TokensService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    hashToken(raw) {
+        return (0, crypto_1.createHash)('sha256').update(raw).digest('hex');
+    }
+    async findAll(userId) {
+        return this.prisma.apiToken.findMany({
+            where: { userId },
+            select: {
+                id: true,
+                name: true,
+                tokenPrefix: true,
+                scopesJson: true,
+                expiresAt: true,
+                lastUsedAt: true,
+                revokedAt: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+    async create(dto, userId) {
+        const raw = `axn_${(0, crypto_1.randomBytes)(32).toString('hex')}`;
+        const tokenHash = this.hashToken(raw);
+        const tokenPrefix = raw.substring(0, 12);
+        const token = await this.prisma.apiToken.create({
+            data: {
+                userId,
+                name: dto.name,
+                tokenHash,
+                tokenPrefix,
+                encryptedValue: raw, // stored in plaintext here; encrypt at rest in production
+                scopesJson: dto.scopes ? JSON.stringify(dto.scopes) : null,
+                expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+            },
+        });
+        // Return raw token only once — never stored in plaintext
+        return { ...token, rawToken: raw };
+    }
+    async revoke(id, userId) {
+        const token = await this.prisma.apiToken.findFirst({ where: { id, userId } });
+        if (!token)
+            throw new common_1.NotFoundException('Token not found');
+        await this.prisma.apiToken.update({ where: { id }, data: { revokedAt: new Date() } });
+        return { success: true };
+    }
+    async validate(raw) {
+        const hash = this.hashToken(raw);
+        const token = await this.prisma.apiToken.findFirst({
+            where: { tokenHash: hash, revokedAt: null },
+        });
+        if (!token)
+            throw new common_1.UnauthorizedException('Invalid token');
+        if (token.expiresAt && token.expiresAt < new Date()) {
+            throw new common_1.UnauthorizedException('Token expired');
+        }
+        await this.prisma.apiToken.update({
+            where: { id: token.id },
+            data: { lastUsedAt: new Date() },
+        });
+        return { valid: true, userId: token.userId, scopes: token.scopesJson };
+    }
+};
+exports.TokensService = TokensService;
+exports.TokensService = TokensService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], TokensService);
+
+
+/***/ }),
+/* 47 */
+/***/ ((module) => {
+
+module.exports = require("crypto");
+
+/***/ }),
+/* 48 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c, _d, _e;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.TokensController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const tokens_service_1 = __webpack_require__(46);
+const tokens_dto_1 = __webpack_require__(49);
+let TokensController = class TokensController {
+    constructor(tokensService) {
+        this.tokensService = tokensService;
+    }
+    findAll(req) {
+        return this.tokensService.findAll(req.user.id);
+    }
+    create(dto, req) {
+        return this.tokensService.create(dto, req.user.id);
+    }
+    revoke(id, req) {
+        return this.tokensService.revoke(id, req.user.id);
+    }
+};
+exports.TokensController = TokensController;
+tslib_1.__decorate([
+    (0, common_1.Get)(),
+    (0, swagger_1.ApiOperation)({ summary: 'List all API tokens for the current user' }),
+    tslib_1.__param(0, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TokensController.prototype, "findAll", null);
+tslib_1.__decorate([
+    (0, common_1.Post)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create a new API token (raw token shown once)' }),
+    tslib_1.__param(0, (0, common_1.Body)()),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_c = typeof tokens_dto_1.CreateApiTokenDto !== "undefined" && tokens_dto_1.CreateApiTokenDto) === "function" ? _c : Object, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TokensController.prototype, "create", null);
+tslib_1.__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Revoke an API token' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], TokensController.prototype, "revoke", null);
+exports.TokensController = TokensController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('API Tokens'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('tokens'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof tokens_service_1.TokensService !== "undefined" && tokens_service_1.TokensService) === "function" ? _a : Object])
+], TokensController);
+
+
+/***/ }),
+/* 49 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.CreateApiTokenDto = void 0;
+const tslib_1 = __webpack_require__(1);
+const class_validator_1 = __webpack_require__(26);
+const swagger_1 = __webpack_require__(4);
+class CreateApiTokenDto {
+}
+exports.CreateApiTokenDto = CreateApiTokenDto;
+tslib_1.__decorate([
+    (0, swagger_1.ApiProperty)({ example: 'My Integration Token' }),
+    (0, class_validator_1.IsString)(),
+    tslib_1.__metadata("design:type", String)
+], CreateApiTokenDto.prototype, "name", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Expiry date ISO string, null = never expires' }),
+    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", String)
+], CreateApiTokenDto.prototype, "expiresAt", void 0);
+tslib_1.__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Allowed scopes e.g. ["plugins:read","tools:execute"]' }),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsOptional)(),
+    tslib_1.__metadata("design:type", Array)
+], CreateApiTokenDto.prototype, "scopes", void 0);
 
 
 /***/ })

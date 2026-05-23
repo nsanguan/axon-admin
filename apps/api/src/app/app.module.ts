@@ -10,6 +10,8 @@ import { UsersModule } from '../users/users.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { ToolsModule } from '../tools/tools.module';
+import { TestingModule } from '../testing/testing.module';
+import { TokensModule } from '../tokens/tokens.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Module({
@@ -30,6 +32,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
     DashboardModule,
     PluginsModule,
     ToolsModule,
+    TestingModule,
+    TokensModule,
   ],
   controllers: [AppController],
   providers: [
