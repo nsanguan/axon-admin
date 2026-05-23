@@ -16,6 +16,10 @@ COPY packages ./packages/
 # Install dependencies
 RUN pnpm install
 
+# Build-time env for Next.js NEXT_PUBLIC_* variables
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Build Next.js app
 RUN node node_modules/nx/dist/bin/nx.js build web --configuration=production
 
