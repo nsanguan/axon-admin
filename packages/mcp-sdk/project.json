@@ -1,0 +1,19 @@
+{
+  "name": "mcp-sdk",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/mcp-sdk/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/mcp-sdk",
+        "main": "packages/mcp-sdk/src/index.ts",
+        "tsConfig": "packages/mcp-sdk/tsconfig.lib.json",
+        "assets": ["packages/mcp-sdk/*.md"]
+      }
+    }
+  }
+}

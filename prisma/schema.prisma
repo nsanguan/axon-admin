@@ -1,0 +1,555 @@
+// AXON Admin — Prisma Schema
+// Database: PostgreSQL @ 202.71.1.13:5435 / schema: axon_admin
+// Run: pnpm prisma migrate dev
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Phase 2: Auth ────────────────────────────────────────────────────────────
+
+model User {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  name             String
+  avatar           String?
+  passwordHash     String?
+  isVerified       Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  mfaSecret        String?   // AES-256-GCM encrypted TOTP secret
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  sessions         Session[]
+  refreshTokens    RefreshToken[]
+  userRoles        UserRole[]
+  apiTokens        ApiToken[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  orchestratorRuns OrchestratorRun[]
+  aiAgentRuns      AiAgentRun[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  resource    String
+  action      String
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ─── Phase 5: Plugin Management ──────────────────────────────────────────────
+
+model PluginGroup {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  color       String?
+
+  plugins Plugin[]
+
+  @@map("plugin_groups")
+}
+
+model PluginTag {
+  id   String @id @default(uuid())
+  name String @unique
+
+  pluginTagMaps PluginTagMap[]
+
+  @@map("plugin_tags")
+}
+
+model Plugin {
+  id               String    @id @default(uuid())
+  name             String
+  description      String?
+  endpoint         String
+  authMethod       String    @default("none")  // none | api_key | bearer | basic
+  apiKeyEncrypted  String?
+  headersJson      String?
+  timeoutMs        Int       @default(30000)
+  retryPolicyJson  String?
+  status           String    @default("active") // active | inactive | error
+  version          String    @default("1.0.0")
+  healthStatus     String?
+  groupId          String?
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  group       PluginGroup?   @relation(fields: [groupId], references: [id])
+  envVars     PluginEnvVar[]
+  pluginTagMaps PluginTagMap[]
+  tools       Tool[]
+
+  @@map("plugins")
+}
+
+model PluginTagMap {
+  pluginId String
+  tagId    String
+
+  plugin Plugin    @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  tag    PluginTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([pluginId, tagId])
+  @@map("plugin_tag_map")
+}
+
+model PluginEnvVar {
+  id             String  @id @default(uuid())
+  pluginId       String
+  key            String
+  valueEncrypted String
+  isSecret       Boolean @default(true)
+
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([pluginId, key])
+  @@map("plugin_env_vars")
+}
+
+// ─── Phase 6: Tool Management ────────────────────────────────────────────────
+
+model ToolCategory {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  icon        String?
+  color       String?
+
+  tools Tool[]
+
+  @@map("tool_categories")
+}
+
+model Tool {
+  id               String    @id @default(uuid())
+  name             String
+  description      String?
+  categoryId       String?
+  pluginId         String?
+  inputSchemaJson  String?
+  outputSchemaJson String?
+  activeVersionId  String?
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  category      ToolCategory?       @relation(fields: [categoryId], references: [id])
+  plugin        Plugin?             @relation(fields: [pluginId], references: [id])
+  versions      ToolVersion[]
+  executionLogs ToolExecutionLog[]
+
+  @@map("tools")
+}
+
+model ToolVersion {
+  id               String   @id @default(uuid())
+  toolId           String
+  version          String
+  inputSchemaJson  String?
+  outputSchemaJson String?
+  changelog        String?
+  createdBy        String?
+  createdAt        DateTime @default(now())
+
+  tool Tool @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@map("tool_versions")
+}
+
+model ToolExecutionLog {
+  id           String   @id @default(uuid())
+  toolId       String
+  versionId    String?
+  userId       String?
+  inputJson    String?
+  outputJson   String?
+  status       String   @default("pending") // pending | success | error
+  durationMs   Int?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  tool Tool @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@map("tool_execution_logs")
+}
+
+// ─── Phase 7: MCP Testing Console ────────────────────────────────────────────
+
+model TestCollection {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requests TestRequest[]
+
+  @@map("test_collections")
+}
+
+model TestRequest {
+  id           String   @id @default(uuid())
+  collectionId String
+  name         String
+  protocol     String   @default("rest") // rest | sse | websocket | mcp
+  url          String
+  headersJson  String?
+  bodyJson     String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  collection TestCollection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  executions TestExecution[]
+
+  @@map("test_requests")
+}
+
+model TestExecution {
+  id             String   @id @default(uuid())
+  requestId      String
+  userId         String?
+  responseStatus Int?
+  responseBody   String?
+  durationMs     Int?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  request TestRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("test_executions")
+}
+
+// ─── Phase 8: Token & Security ───────────────────────────────────────────────
+
+model ApiToken {
+  id             String    @id @default(uuid())
+  userId         String
+  name           String
+  tokenHash      String    @unique
+  tokenPrefix    String    // first 8 chars, stored plain for display
+  encryptedValue String    // AES-256-GCM encrypted full token
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  ipWhitelist    String?   // JSON array of allowed IPs
+  scopesJson     String?
+  createdAt      DateTime  @default(now())
+  revokedAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_tokens")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  action       String
+  resourceType String
+  resourceId   String?
+  beforeJson   String?
+  afterJson    String?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+// ─── Phase 9: Logging ────────────────────────────────────────────────────────
+
+model SystemLog {
+  id          String   @id @default(uuid())
+  level       String   // ERROR | WARN | INFO | HTTP | DEBUG
+  message     String
+  contextJson String?
+  traceId     String?
+  spanId      String?
+  createdAt   DateTime @default(now())
+
+  @@map("system_logs")
+}
+
+model ExecutionLog {
+  id           String   @id @default(uuid())
+  pluginId     String?
+  toolId       String?
+  userId       String?
+  status       String
+  inputJson    String?
+  outputJson   String?
+  durationMs   Int?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@map("execution_logs")
+}
+
+// ─── Phase 10: Notifications ─────────────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  dataJson  String?
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model NotificationRule {
+  id            String   @id @default(uuid())
+  eventType     String
+  conditionJson String?
+  channelsJson  String   // { email: bool, slack: bool, discord: bool, telegram: bool }
+  isActive      Boolean  @default(true)
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("notification_rules")
+}
+
+// ─── Phase 11: Settings & Environments ───────────────────────────────────────
+
+model Setting {
+  id          String   @id @default(uuid())
+  namespace   String
+  key         String
+  valueJson   String
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+
+  @@unique([namespace, key])
+  @@map("settings")
+}
+
+model Environment {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  envVariables    EnvVariable[]
+  featureFlagOverrides FeatureFlagOverride[]
+
+  @@map("environments")
+}
+
+model EnvVariable {
+  id             String   @id @default(uuid())
+  environmentId  String
+  key            String
+  valueEncrypted String
+  isSecret       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([environmentId, key])
+  @@map("env_variables")
+}
+
+model FeatureFlag {
+  id               String   @id @default(uuid())
+  name             String
+  key              String   @unique
+  type             String   @default("boolean") // boolean | string | number
+  defaultValueJson String
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  overrides FeatureFlagOverride[]
+
+  @@map("feature_flags")
+}
+
+model FeatureFlagOverride {
+  id            String @id @default(uuid())
+  flagId        String
+  environmentId String
+  valueJson     String
+
+  flag        FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([flagId, environmentId])
+  @@map("feature_flag_overrides")
+}
+
+// ─── Phase 15: Orchestrator & AI Testing ─────────────────────────────────────
+
+model OrchestratorRun {
+  id                String   @id @default(uuid())
+  userId            String?
+  prompt            String
+  contextJson       String?
+  model             String?
+  threadId          String?
+  status            String   @default("pending") // pending | running | done | error | hitl_pending
+  totalDurationMs   Int?
+  totalInputTokens  Int?
+  totalOutputTokens Int?
+  planId            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user   User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  stages OrchestratorStage[]
+
+  @@map("orchestrator_runs")
+}
+
+model OrchestratorStage {
+  id           String    @id @default(uuid())
+  runId        String
+  stageNumber  Int
+  stageName    String
+  status       String    @default("pending") // pending | running | done | error | hitl_pending
+  inputJson    String?
+  outputJson   String?
+  errorMessage String?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  durationMs   Int?
+  inputTokens  Int?
+  outputTokens Int?
+
+  run OrchestratorRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, stageNumber])
+  @@map("orchestrator_stages")
+}
+
+model AiAgentRun {
+  id                String   @id @default(uuid())
+  userId            String?
+  agentName         String
+  modelMode         String   // test_model | function_model | real_model
+  modelName         String?
+  prompt            String
+  depsJson          String?
+  usageLimitsJson   String?
+  modelSettingsJson String?
+  status            String   @default("pending") // pending | running | done | error
+  outputJson        String?
+  errorMessage      String?
+  totalDurationMs   Int?
+  inputTokens       Int?
+  outputTokens      Int?
+  createdAt         DateTime @default(now())
+
+  user     User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages AiAgentMessage[]
+
+  @@map("ai_agent_runs")
+}
+
+model AiAgentMessage {
+  id            String   @id @default(uuid())
+  runId         String
+  sequenceOrder Int
+  messageKind   String   // request | response
+  partKind      String   // user-prompt | tool-call | tool-return | text | retry-prompt
+  contentJson   String?
+  toolName      String?
+  toolCallId    String?
+  modelName     String?
+  inputTokens   Int?
+  outputTokens  Int?
+  timestamp     DateTime @default(now())
+
+  run AiAgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("ai_agent_messages")
+}

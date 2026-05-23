@@ -1,0 +1,31 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "bundler",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@axon/types": ["packages/types/src/index.ts"],
+      "@axon/ui": ["packages/ui/src/index.ts"],
+      "@axon/shared": ["packages/shared/src/index.ts"],
+      "@axon/config": ["packages/config/src/index.ts"],
+      "@axon/mcp-sdk": ["packages/mcp-sdk/src/index.ts"],
+      "types": ["./packages/types/src/index.ts"],
+      "shared": ["./packages/shared/src/index.ts"],
+      "mcp-sdk": ["./packages/mcp-sdk/src/index.ts"],
+      "config": ["./packages/config/src/index.ts"],
+      "ui": ["./packages/ui/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}
