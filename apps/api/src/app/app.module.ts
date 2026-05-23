@@ -12,6 +12,8 @@ import { PluginsModule } from '../plugins/plugins.module';
 import { ToolsModule } from '../tools/tools.module';
 import { TestingModule } from '../testing/testing.module';
 import { TokensModule } from '../tokens/tokens.module';
+import { LogsModule } from '../logs/logs.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Module({
@@ -34,6 +36,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
     ToolsModule,
     TestingModule,
     TokensModule,
+    LogsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

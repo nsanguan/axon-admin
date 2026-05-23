@@ -53,6 +53,8 @@ const plugins_module_1 = __webpack_require__(33);
 const tools_module_1 = __webpack_require__(37);
 const testing_module_1 = __webpack_require__(41);
 const tokens_module_1 = __webpack_require__(45);
+const logs_module_1 = __webpack_require__(50);
+const notifications_module_1 = __webpack_require__(53);
 const jwt_auth_guard_1 = __webpack_require__(12);
 let AppModule = class AppModule {
 };
@@ -78,6 +80,8 @@ exports.AppModule = AppModule = tslib_1.__decorate([
             tools_module_1.ToolsModule,
             testing_module_1.TestingModule,
             tokens_module_1.TokensModule,
+            logs_module_1.LogsModule,
+            notifications_module_1.NotificationsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
@@ -2122,6 +2126,318 @@ tslib_1.__decorate([
     (0, class_validator_1.IsOptional)(),
     tslib_1.__metadata("design:type", Array)
 ], CreateApiTokenDto.prototype, "scopes", void 0);
+
+
+/***/ }),
+/* 50 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LogsModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const logs_service_1 = __webpack_require__(51);
+const logs_controller_1 = __webpack_require__(52);
+let LogsModule = class LogsModule {
+};
+exports.LogsModule = LogsModule;
+exports.LogsModule = LogsModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [logs_service_1.LogsService],
+        controllers: [logs_controller_1.LogsController],
+    })
+], LogsModule);
+
+
+/***/ }),
+/* 51 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LogsService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let LogsService = class LogsService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findAuditLogs(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '50');
+        const where = {};
+        if (query.userId)
+            where['userId'] = query.userId;
+        if (query.action)
+            where['action'] = { contains: query.action, mode: 'insensitive' };
+        if (query.resourceType)
+            where['resourceType'] = query.resourceType;
+        const [data, total] = await Promise.all([
+            this.prisma.auditLog.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                include: { user: { select: { id: true, email: true } } },
+            }),
+            this.prisma.auditLog.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async findSystemLogs(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '100');
+        const where = {};
+        if (query.level)
+            where['level'] = query.level.toUpperCase();
+        if (query.search) {
+            where['message'] = { contains: query.search, mode: 'insensitive' };
+        }
+        const [data, total] = await Promise.all([
+            this.prisma.systemLog.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prisma.systemLog.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async findExecutionLogs(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '50');
+        const where = {};
+        if (query.pluginId)
+            where['pluginId'] = query.pluginId;
+        if (query.toolId)
+            where['toolId'] = query.toolId;
+        if (query.status)
+            where['status'] = query.status;
+        const [data, total] = await Promise.all([
+            this.prisma.executionLog.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prisma.executionLog.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+};
+exports.LogsService = LogsService;
+exports.LogsService = LogsService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], LogsService);
+
+
+/***/ }),
+/* 52 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c, _d;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LogsController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const logs_service_1 = __webpack_require__(51);
+let LogsController = class LogsController {
+    constructor(logsService) {
+        this.logsService = logsService;
+    }
+    findAudit(query) {
+        return this.logsService.findAuditLogs(query);
+    }
+    findSystem(query) {
+        return this.logsService.findSystemLogs(query);
+    }
+    findExecution(query) {
+        return this.logsService.findExecutionLogs(query);
+    }
+};
+exports.LogsController = LogsController;
+tslib_1.__decorate([
+    (0, common_1.Get)('audit'),
+    (0, swagger_1.ApiOperation)({ summary: 'List audit logs' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_b = typeof Record !== "undefined" && Record) === "function" ? _b : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], LogsController.prototype, "findAudit", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('system'),
+    (0, swagger_1.ApiOperation)({ summary: 'List system logs' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_c = typeof Record !== "undefined" && Record) === "function" ? _c : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], LogsController.prototype, "findSystem", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('execution'),
+    (0, swagger_1.ApiOperation)({ summary: 'List execution logs' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_d = typeof Record !== "undefined" && Record) === "function" ? _d : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], LogsController.prototype, "findExecution", null);
+exports.LogsController = LogsController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Logs'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('logs'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof logs_service_1.LogsService !== "undefined" && logs_service_1.LogsService) === "function" ? _a : Object])
+], LogsController);
+
+
+/***/ }),
+/* 53 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotificationsModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const notifications_service_1 = __webpack_require__(54);
+const notifications_controller_1 = __webpack_require__(55);
+let NotificationsModule = class NotificationsModule {
+};
+exports.NotificationsModule = NotificationsModule;
+exports.NotificationsModule = NotificationsModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [notifications_service_1.NotificationsService],
+        controllers: [notifications_controller_1.NotificationsController],
+    })
+], NotificationsModule);
+
+
+/***/ }),
+/* 54 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotificationsService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let NotificationsService = class NotificationsService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findAll(userId, unreadOnly) {
+        return this.prisma.notification.findMany({
+            where: {
+                userId,
+                ...(unreadOnly ? { isRead: false } : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+        });
+    }
+    async markRead(id, userId) {
+        return this.prisma.notification.updateMany({
+            where: { id, userId },
+            data: { isRead: true, readAt: new Date() },
+        });
+    }
+    async markAllRead(userId) {
+        return this.prisma.notification.updateMany({
+            where: { userId, isRead: false },
+            data: { isRead: true, readAt: new Date() },
+        });
+    }
+    async getUnreadCount(userId) {
+        const count = await this.prisma.notification.count({
+            where: { userId, isRead: false },
+        });
+        return { count };
+    }
+};
+exports.NotificationsService = NotificationsService;
+exports.NotificationsService = NotificationsService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], NotificationsService);
+
+
+/***/ }),
+/* 55 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c, _d, _e;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.NotificationsController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const notifications_service_1 = __webpack_require__(54);
+let NotificationsController = class NotificationsController {
+    constructor(notificationsService) {
+        this.notificationsService = notificationsService;
+    }
+    findAll(req, unread) {
+        return this.notificationsService.findAll(req.user.id, unread === 'true');
+    }
+    unreadCount(req) {
+        return this.notificationsService.getUnreadCount(req.user.id);
+    }
+    markRead(id, req) {
+        return this.notificationsService.markRead(id, req.user.id);
+    }
+    markAllRead(req) {
+        return this.notificationsService.markAllRead(req.user.id);
+    }
+};
+exports.NotificationsController = NotificationsController;
+tslib_1.__decorate([
+    (0, common_1.Get)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get user notifications' }),
+    tslib_1.__param(0, (0, common_1.Req)()),
+    tslib_1.__param(1, (0, common_1.Query)('unread')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object, String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], NotificationsController.prototype, "findAll", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('unread-count'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get unread notification count' }),
+    tslib_1.__param(0, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], NotificationsController.prototype, "unreadCount", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)(':id/read'),
+    (0, swagger_1.ApiOperation)({ summary: 'Mark notification as read' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__param(1, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String, Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], NotificationsController.prototype, "markRead", null);
+tslib_1.__decorate([
+    (0, common_1.Patch)('read-all'),
+    (0, swagger_1.ApiOperation)({ summary: 'Mark all notifications as read' }),
+    tslib_1.__param(0, (0, common_1.Req)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], NotificationsController.prototype, "markAllRead", null);
+exports.NotificationsController = NotificationsController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Notifications'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('notifications'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof notifications_service_1.NotificationsService !== "undefined" && notifications_service_1.NotificationsService) === "function" ? _a : Object])
+], NotificationsController);
 
 
 /***/ })
