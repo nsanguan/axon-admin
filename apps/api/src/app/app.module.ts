@@ -17,6 +17,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { AxonModule } from '../axon/axon.module';
+import { OrchestratorModule } from '../orchestrator/orchestrator.module';
+import { PydanticAiModule } from '../pydantic-ai/pydantic-ai.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Module({
@@ -44,6 +46,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
     SettingsModule,
     RbacModule,
     AxonModule,
+    OrchestratorModule,
+    PydanticAiModule,
   ],
   controllers: [AppController],
   providers: [

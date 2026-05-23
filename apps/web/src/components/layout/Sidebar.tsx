@@ -15,15 +15,32 @@ import {
   Brain,
   ChevronLeft,
   ChevronRight,
+  GitBranch,
+  Bot,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
 
-const navItems = [
+interface NavItem {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  children?: { href: string; icon: React.ElementType; label: string }[];
+}
+
+const navItems: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/plugins', icon: Puzzle, label: 'Plugins' },
   { href: '/tools', icon: Wrench, label: 'Tools' },
-  { href: '/testing', icon: FlaskConical, label: 'Testing Console' },
+  {
+    href: '/testing',
+    icon: FlaskConical,
+    label: 'Testing Console',
+    children: [
+      { href: '/testing/orchestrator', icon: GitBranch, label: 'Pipeline Tester' },
+      { href: '/testing/pydantic-ai', icon: Bot, label: 'AI Agent Tester' },
+    ],
+  },
   { href: '/tokens', icon: Shield, label: 'Tokens & Security' },
   { href: '/logs', icon: Activity, label: 'Logs & Monitoring' },
   { href: '/notifications', icon: Bell, label: 'Notifications' },
@@ -62,8 +79,9 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
-          {navItems.map(({ href, icon: Icon, label }) => {
-            const active = pathname.startsWith(href);
+          {navItems.map(({ href, icon: Icon, label, children }) => {
+            const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href) && !children);
+            const parentActive = children ? pathname.startsWith(href) : false;
             return (
               <li key={href}>
                 <Link
@@ -71,7 +89,7 @@ export function Sidebar() {
                   title={collapsed ? label : undefined}
                   className={cn(
                     'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    active
+                    (active || parentActive)
                       ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                       : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]',
                     collapsed && 'justify-center px-2',
@@ -80,6 +98,30 @@ export function Sidebar() {
                   <Icon size={18} />
                   {!collapsed && <span>{label}</span>}
                 </Link>
+                {/* Sub-nav */}
+                {!collapsed && children && parentActive && (
+                  <ul className="mt-1 space-y-0.5 pl-9">
+                    {children.map(({ href: childHref, icon: ChildIcon, label: childLabel }) => {
+                      const childActive = pathname.startsWith(childHref);
+                      return (
+                        <li key={childHref}>
+                          <Link
+                            href={childHref}
+                            className={cn(
+                              'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                              childActive
+                                ? 'bg-[var(--primary)]/20 text-[var(--primary)]'
+                                : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]',
+                            )}
+                          >
+                            <ChildIcon size={14} />
+                            {childLabel}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}

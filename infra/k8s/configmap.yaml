@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: axon-admin-config
+  namespace: axon-admin
+data:
+  NODE_ENV: "production"
+  API_PORT: "3001"
+  WEB_PORT: "3000"
+  AI_TESTER_PORT: "8210"
+  NEXT_PUBLIC_API_URL: "https://admin.axon.internal/api"
+  DATABASE_SCHEMA: "axon_admin"
