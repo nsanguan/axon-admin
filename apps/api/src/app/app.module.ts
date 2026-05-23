@@ -16,6 +16,7 @@ import { LogsModule } from '../logs/logs.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { AxonModule } from '../axon/axon.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Module({
@@ -42,6 +43,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
     NotificationsModule,
     SettingsModule,
     RbacModule,
+    AxonModule,
   ],
   controllers: [AppController],
   providers: [

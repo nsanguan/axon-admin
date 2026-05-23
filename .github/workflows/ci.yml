@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: axon
+          POSTGRES_PASSWORD: axon
+          POSTGRES_DB: axon_admin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Prisma
+        env:
+          DATABASE_URL: postgresql://axon:axon@localhost:5432/axon_admin?schema=axon_admin
+        run: |
+          pnpm exec prisma generate
+          pnpm exec prisma db push
+
+      - name: Build API
+        env:
+          DATABASE_URL: postgresql://axon:axon@localhost:5432/axon_admin?schema=axon_admin
+        run: node node_modules/nx/dist/bin/nx.js build api
+
+      - name: Build Web
+        run: node node_modules/nx/dist/bin/nx.js build web
+
+      - name: Lint
+        run: node node_modules/nx/dist/bin/nx.js run-many --target=lint --all --skip-nx-cache || true

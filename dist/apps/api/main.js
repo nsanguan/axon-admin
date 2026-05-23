@@ -57,6 +57,7 @@ const logs_module_1 = __webpack_require__(50);
 const notifications_module_1 = __webpack_require__(53);
 const settings_module_1 = __webpack_require__(56);
 const rbac_module_1 = __webpack_require__(59);
+const axon_module_1 = __webpack_require__(62);
 const jwt_auth_guard_1 = __webpack_require__(12);
 let AppModule = class AppModule {
 };
@@ -86,6 +87,7 @@ exports.AppModule = AppModule = tslib_1.__decorate([
             notifications_module_1.NotificationsModule,
             settings_module_1.SettingsModule,
             rbac_module_1.RbacModule,
+            axon_module_1.AxonModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
@@ -2867,6 +2869,198 @@ exports.RbacController = RbacController = tslib_1.__decorate([
     (0, common_1.Controller)('rbac'),
     tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof rbac_service_1.RbacService !== "undefined" && rbac_service_1.RbacService) === "function" ? _a : Object])
 ], RbacController);
+
+
+/***/ }),
+/* 62 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AxonModule = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const axon_service_1 = __webpack_require__(63);
+const axon_controller_1 = __webpack_require__(64);
+let AxonModule = class AxonModule {
+};
+exports.AxonModule = AxonModule;
+exports.AxonModule = AxonModule = tslib_1.__decorate([
+    (0, common_1.Module)({
+        providers: [axon_service_1.AxonService],
+        controllers: [axon_controller_1.AxonController],
+    })
+], AxonModule);
+
+
+/***/ }),
+/* 63 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AxonService = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const prisma_service_1 = __webpack_require__(15);
+let AxonService = class AxonService {
+    constructor(prisma) {
+        this.prisma = prisma;
+    }
+    async findOrchestratorRuns(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '20');
+        const where = {};
+        if (query.status)
+            where['status'] = query.status;
+        const [data, total] = await Promise.all([
+            this.prisma.orchestratorRun.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    prompt: true,
+                    model: true,
+                    status: true,
+                    totalDurationMs: true,
+                    totalInputTokens: true,
+                    totalOutputTokens: true,
+                    createdAt: true,
+                    user: { select: { email: true } },
+                },
+            }),
+            this.prisma.orchestratorRun.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async findAiAgentRuns(query) {
+        const page = parseInt(query.page || '1');
+        const pageSize = parseInt(query.pageSize || '20');
+        const where = {};
+        if (query.status)
+            where['status'] = query.status;
+        const [data, total] = await Promise.all([
+            this.prisma.aiAgentRun.findMany({
+                where,
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    agentName: true,
+                    modelMode: true,
+                    modelName: true,
+                    prompt: true,
+                    status: true,
+                    totalDurationMs: true,
+                    inputTokens: true,
+                    outputTokens: true,
+                    errorMessage: true,
+                    createdAt: true,
+                    user: { select: { email: true } },
+                },
+            }),
+            this.prisma.aiAgentRun.count({ where }),
+        ]);
+        return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    }
+    async getOrchestratorRunDetail(id) {
+        const run = await this.prisma.orchestratorRun.findUnique({
+            where: { id },
+            include: {
+                stages: { orderBy: { stageNumber: 'asc' } },
+                user: { select: { email: true } },
+            },
+        });
+        return run;
+    }
+    async getStats() {
+        const [orchTotal, agentTotal, orchByStatus, agentByStatus] = await Promise.all([
+            this.prisma.orchestratorRun.count(),
+            this.prisma.aiAgentRun.count(),
+            this.prisma.orchestratorRun.groupBy({ by: ['status'], _count: { id: true } }),
+            this.prisma.aiAgentRun.groupBy({ by: ['status'], _count: { id: true } }),
+        ]);
+        return { orchTotal, agentTotal, orchByStatus, agentByStatus };
+    }
+};
+exports.AxonService = AxonService;
+exports.AxonService = AxonService = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof prisma_service_1.PrismaService !== "undefined" && prisma_service_1.PrismaService) === "function" ? _a : Object])
+], AxonService);
+
+
+/***/ }),
+/* 64 */
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+
+var _a, _b, _c;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.AxonController = void 0;
+const tslib_1 = __webpack_require__(1);
+const common_1 = __webpack_require__(2);
+const swagger_1 = __webpack_require__(4);
+const axon_service_1 = __webpack_require__(63);
+let AxonController = class AxonController {
+    constructor(axonService) {
+        this.axonService = axonService;
+    }
+    getStats() {
+        return this.axonService.getStats();
+    }
+    findOrchestratorRuns(query) {
+        return this.axonService.findOrchestratorRuns(query);
+    }
+    getOrchestratorRunDetail(id) {
+        return this.axonService.getOrchestratorRunDetail(id);
+    }
+    findAiAgentRuns(query) {
+        return this.axonService.findAiAgentRuns(query);
+    }
+};
+exports.AxonController = AxonController;
+tslib_1.__decorate([
+    (0, common_1.Get)('stats'),
+    (0, swagger_1.ApiOperation)({ summary: 'AXON system stats' }),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", []),
+    tslib_1.__metadata("design:returntype", void 0)
+], AxonController.prototype, "getStats", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('orchestrator-runs'),
+    (0, swagger_1.ApiOperation)({ summary: 'List orchestrator runs' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_b = typeof Record !== "undefined" && Record) === "function" ? _b : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], AxonController.prototype, "findOrchestratorRuns", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('orchestrator-runs/:id'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get orchestrator run detail with stages' }),
+    tslib_1.__param(0, (0, common_1.Param)('id')),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [String]),
+    tslib_1.__metadata("design:returntype", void 0)
+], AxonController.prototype, "getOrchestratorRunDetail", null);
+tslib_1.__decorate([
+    (0, common_1.Get)('ai-agent-runs'),
+    (0, swagger_1.ApiOperation)({ summary: 'List AI agent runs' }),
+    tslib_1.__param(0, (0, common_1.Query)()),
+    tslib_1.__metadata("design:type", Function),
+    tslib_1.__metadata("design:paramtypes", [typeof (_c = typeof Record !== "undefined" && Record) === "function" ? _c : Object]),
+    tslib_1.__metadata("design:returntype", void 0)
+], AxonController.prototype, "findAiAgentRuns", null);
+exports.AxonController = AxonController = tslib_1.__decorate([
+    (0, swagger_1.ApiTags)('Axon System'),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Controller)('axon'),
+    tslib_1.__metadata("design:paramtypes", [typeof (_a = typeof axon_service_1.AxonService !== "undefined" && axon_service_1.AxonService) === "function" ? _a : Object])
+], AxonController);
 
 
 /***/ })
