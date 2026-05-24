@@ -60,7 +60,7 @@ PostgreSQL       External Redis       Python AI Sidecar
 ### Frontend
 
 | | |
-|---|---|
+| --- | --- |
 | Framework | Next.js 15 (app router) + React 19 |
 | Language | TypeScript |
 | Styling | Tailwind CSS + shadcn/ui (Radix) |
@@ -75,7 +75,7 @@ PostgreSQL       External Redis       Python AI Sidecar
 ### Backend
 
 | | |
-|---|---|
+| --- | --- |
 | Framework | NestJS (Express) |
 | Language | TypeScript |
 | ORM | Prisma |
@@ -88,7 +88,7 @@ PostgreSQL       External Redis       Python AI Sidecar
 ### Python AI Sidecar
 
 | | |
-|---|---|
+| --- | --- |
 | Framework | FastAPI |
 | AI agents | Pydantic AI |
 | Orchestration | LangGraph + AsyncPostgresSaver |
@@ -100,7 +100,7 @@ PostgreSQL       External Redis       Python AI Sidecar
 ## Prerequisites
 
 | Requirement | Version |
-|---|---|
+| --- | --- |
 | Node.js | ≥ 22 |
 | pnpm | ≥ 9 |
 | Python | ≥ 3.12 |
@@ -283,7 +283,11 @@ nx graph
 
 ## Documentation
 
-Thai user manuals are stored in the `docs/` folder:
+เอกสารคู่มือภาษาไทยถูกจัดเก็บไว้ในโฟลเดอร์ `docs/` และมีสารบัญกลางที่:
+
+- [docs/README.md](/u01/axon-admin/docs/README.md) — สารบัญเอกสารและแนวทางเลือกคู่มือ
+
+คู่มือหลักที่ใช้งานบ่อยมีดังนี้:
 
 - [docs/USER_MANUAL_AXON_ADMIN_TH.md](/u01/axon-admin/docs/USER_MANUAL_AXON_ADMIN_TH.md) — คู่มือรวมทุกหน้าจอของ AXON Admin
 - [docs/USER_MANUAL_MCP_AGENTS_TESTING_TH.md](/u01/axon-admin/docs/USER_MANUAL_MCP_AGENTS_TESTING_TH.md) — คู่มือเฉพาะหน้าจอ MCP Agents Testing
@@ -291,12 +295,14 @@ Thai user manuals are stored in the `docs/` folder:
 - [docs/USER_MANUAL_AXON_OPERATIONS_TH.md](/u01/axon-admin/docs/USER_MANUAL_AXON_OPERATIONS_TH.md) — คู่มือสำหรับทีม AXON Operations
 - [docs/USER_MANUAL_QA_UAT_CHECKLIST_TH.md](/u01/axon-admin/docs/USER_MANUAL_QA_UAT_CHECKLIST_TH.md) — เช็กลิสต์สำหรับ QA/UAT
 
+หากต้องการเริ่มจากภาพรวม ให้เปิดคู่มือรวมก่อน แล้วค่อยไปยังคู่มือเฉพาะหน้าจอหรือคู่มือตามบทบาทตามงานที่ต้องทำ
+
 ---
 
 ## Pages & Routes
 
 | Route | Description |
-|---|---|
+| --- | --- |
 | `/` | Redirect → `/dashboard` |
 | `/dashboard` | KPI widgets, charts, AXON system status |
 | `/plugins` | Plugin registry — list, search, filter |
@@ -334,7 +340,7 @@ The NestJS API runs at `http://localhost:3001`. Full interactive docs at
 Key endpoint groups:
 
 | Prefix | Description |
-|---|---|
+| --- | --- |
 | `/api/auth/*` | Login, register, refresh, OAuth, 2FA |
 | `/api/users/*` | User management |
 | `/api/roles/*` | Role + permission management |
@@ -375,7 +381,7 @@ See [IMPLEMENT.md](IMPLEMENT.md) for the full 15-phase plan, checklist, all 33
 Prisma table definitions, and complete API route table.
 
 | Phase | Title |
-|---|---|
+| --- | --- |
 | 1 | Foundation — Nx monorepo, NestJS scaffold, Next.js scaffold, Prisma |
 | 2 | Authentication System — JWT, OAuth, RBAC, 2FA |
 | 3 | Core UI Layout — Sidebar, Header, Dark mode, Responsive grid |
@@ -400,7 +406,7 @@ This project ships 14 VS Code agent skills in `.sixth/skills/`. Read the
 relevant skill before implementing any feature:
 
 | Skill | Coverage |
-|---|---|
+| --- | --- |
 | `nx-monorepo-setup` | Nx workspace, app generators, path aliases |
 | `nestjs-api-module` | Module/controller/service/DTO, guards, Swagger |
 | `nextjs-page-creation` | App router, TanStack Query, forms, Axios client |
