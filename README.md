@@ -15,6 +15,7 @@ the AXON AI system:
 - **Plugin & Tool Registry** — manage 10+ MCP domain agents and 100+ tools
 - **Orchestrator Pipeline Tester** — run requests through the 6-stage AXON pipeline and inspect each stage's input/output in real time
 - **Pydantic AI Agent Tester** — test Pydantic AI agents in TestModel / FunctionModel / real mode with full message exchange inspection
+- **MCP Agents Testing** — launch and pre-configure MCP Inspector for Streamable HTTP, SSE, and stdio MCP servers from within AXON Admin
 - **MCP Testing Console** — REST, SSE, WebSocket, and JSON-RPC 2.0 test runner
 - **HITL Approval Queue** — human-in-the-loop decision management for `axon_board.hitl_queue`
 - **Experience Ledger** — browse and replay `axon_brain.experience_records`
@@ -28,9 +29,9 @@ the AXON AI system:
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────┐
-│              Browser (port 3000)            │
+│              Browser (port 3200)            │
 │         Next.js 15  •  React 19             │
 │  TanStack Query  •  shadcn/ui  •  Recharts  │
 └───────────────────┬─────────────────────────┘
@@ -42,9 +43,9 @@ the AXON AI system:
 └───┬───────────────┬───────────────┬─────────┘
     │               │               │
     ▼               ▼               ▼
-PostgreSQL       Redis        Python AI Sidecar
-(axon_admin +    BullMQ +     FastAPI (port 8210)
- AXON schemas)   pub/sub      Pydantic AI • LangGraph
+PostgreSQL       External Redis       Python AI Sidecar
+(axon_admin +    axon-redis-central   FastAPI (port 8210)
+ AXON schemas)   BullMQ + pub/sub     Pydantic AI • LangGraph
  port 5435
                                │
                                ▼
@@ -57,6 +58,7 @@ PostgreSQL       Redis        Python AI Sidecar
 ## Tech Stack
 
 ### Frontend
+
 | | |
 |---|---|
 | Framework | Next.js 15 (app router) + React 19 |
@@ -71,6 +73,7 @@ PostgreSQL       Redis        Python AI Sidecar
 | Realtime | Socket.io + SSE |
 
 ### Backend
+
 | | |
 |---|---|
 | Framework | NestJS (Express) |
@@ -83,6 +86,7 @@ PostgreSQL       Redis        Python AI Sidecar
 | Docs | Swagger at `/api/docs` |
 
 ### Python AI Sidecar
+
 | | |
 |---|---|
 | Framework | FastAPI |
@@ -129,8 +133,12 @@ Key variables:
 # Database (remote — already running)
 DATABASE_URL="postgresql://axon:axon@202.71.1.13:5435/axon_admin"
 
-# Redis (local)
-REDIS_URL="redis://localhost:6379"
+# Redis (shared external container)
+REDIS_URL="redis://axon-redis-central:6379"
+
+# Frontend / CORS
+NEXT_PUBLIC_API_URL="http://202.71.1.13:3001"
+FRONTEND_URL="http://202.71.1.13:3200"
 
 # JWT
 JWT_SECRET="<32-char random string>"
@@ -178,24 +186,28 @@ uvicorn main:app --reload --port 8210
 ```
 
 Open:
-- Frontend: http://localhost:3000
-- API Swagger: http://localhost:3001/api/docs
+
+- Frontend: `http://localhost:3000`
+- API Swagger: `http://localhost:3001/api/docs`
 - Prisma Studio: `pnpm prisma studio`
 
 ### 5. Docker (alternative)
 
 ```bash
+cd infra
 docker compose up -d
 ```
 
-Services started: Redis, NestJS API, Next.js, Nginx reverse proxy.
-PostgreSQL is remote — no local container needed.
+Services started: NestJS API on port 3001 and Next.js on host port 3200.
+Redis is provided by the shared `axon-redis-central` container on the external `axon-global-network`.
+Physical Nginx on the host handles reverse proxy and TLS.
+PostgreSQL is remote — no local DB container is started here.
 
 ---
 
 ## Project Structure
 
-```
+```text
 /u01/axon-admin/
 ├── apps/
 │   ├── web/              # Next.js 15 frontend
@@ -214,13 +226,14 @@ PostgreSQL is remote — no local container needed.
 │   ├── docker/           # Multi-stage Dockerfiles
 │   ├── k8s/              # Kubernetes manifests
 │   └── nginx/            # Reverse proxy config
+├── docs/                 # Thai user manuals and operational guides
 ├── .sixth/
 │   └── skills/           # AI agent skills (14 skills)
 ├── .github/
 │   └── workflows/        # CI/CD — lint → test → build → deploy
 ├── AGENTS.md             # AI coding agent instructions
 ├── IMPLEMENT.md          # 15-phase implementation plan
-├── docker-compose.yml
+├── infra/docker-compose.yml
 ├── nx.json
 └── package.json
 ```
@@ -246,8 +259,10 @@ cd apps/ai-tester && pytest      # Python tests
 # Lint & type-check
 nx lint web
 nx lint api
-nx run web:type-check
-nx run api:type-check
+pnpm typecheck
+
+# MCP Inspector
+pnpm mcp:inspector               # Launch MCP Inspector locally on port 6274
 
 # Prisma
 pnpm prisma migrate dev          # Create and apply migration
@@ -256,13 +271,25 @@ pnpm prisma generate             # Regenerate client after schema changes
 pnpm prisma studio               # GUI at http://localhost:5555
 
 # Docker
-docker compose up -d             # Start all containerised services
-docker compose down              # Stop services
-docker compose logs -f api       # Follow API logs
+cd infra && docker compose up -d # Start containerised web + api services
+cd infra && docker compose down  # Stop services
+cd infra && docker compose logs -f api
 
 # Graph — visualise task dependencies
 nx graph
 ```
+
+---
+
+## Documentation
+
+Thai user manuals are stored in the `docs/` folder:
+
+- [docs/USER_MANUAL_AXON_ADMIN_TH.md](/u01/axon-admin/docs/USER_MANUAL_AXON_ADMIN_TH.md) — คู่มือรวมทุกหน้าจอของ AXON Admin
+- [docs/USER_MANUAL_MCP_AGENTS_TESTING_TH.md](/u01/axon-admin/docs/USER_MANUAL_MCP_AGENTS_TESTING_TH.md) — คู่มือเฉพาะหน้าจอ MCP Agents Testing
+- [docs/USER_MANUAL_ADMIN_OPERATIONS_TH.md](/u01/axon-admin/docs/USER_MANUAL_ADMIN_OPERATIONS_TH.md) — คู่มือสำหรับผู้ดูแลระบบ
+- [docs/USER_MANUAL_AXON_OPERATIONS_TH.md](/u01/axon-admin/docs/USER_MANUAL_AXON_OPERATIONS_TH.md) — คู่มือสำหรับทีม AXON Operations
+- [docs/USER_MANUAL_QA_UAT_CHECKLIST_TH.md](/u01/axon-admin/docs/USER_MANUAL_QA_UAT_CHECKLIST_TH.md) — เช็กลิสต์สำหรับ QA/UAT
 
 ---
 
@@ -279,6 +306,7 @@ nx graph
 | `/testing` | MCP Testing Console — REST / SSE / WS / MCP |
 | `/testing/orchestrator` | 6-stage orchestrator pipeline tester |
 | `/testing/pydantic-ai` | Pydantic AI agent tester (TestModel / real) |
+| `/testing/mcp-agents` | Embedded MCP Inspector launcher for MCP agents |
 | `/tokens` | API token vault — masked, rotation, expiry |
 | `/logs` | Real-time virtualised log viewer |
 | `/audit` | Audit trail — actor, action, resource, IP |
