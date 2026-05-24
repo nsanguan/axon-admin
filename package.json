@@ -8,6 +8,7 @@
     "test": "nx run-many -t test --all",
     "lint": "nx run-many -t lint --all",
     "typecheck": "nx run-many -t typecheck --all",
+    "mcp:inspector": "MCP_AUTO_OPEN_ENABLED=false npx @modelcontextprotocol/inspector",
     "db:push": "prisma db push",
     "db:seed": "ts-node --project tsconfig.seed.json prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && ts-node --project tsconfig.seed.json prisma/seed.ts"

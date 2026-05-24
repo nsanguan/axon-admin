@@ -47,6 +47,7 @@ const navItems: NavItem[] = [
     children: [
       { href: '/testing/orchestrator', icon: GitBranch, label: 'Pipeline Tester' },
       { href: '/testing/pydantic-ai', icon: Bot, label: 'AI Agent Tester' },
+      { href: '/testing/mcp-agents', icon: Server, label: 'MCP Agents Testing' },
     ],
   },
   { href: '/tokens', icon: Shield, label: 'Tokens & Security' },

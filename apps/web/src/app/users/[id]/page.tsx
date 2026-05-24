@@ -10,23 +10,22 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 interface Role { id: string; name: string; description?: string }
-interface Session { id: string; ipAddress?: string; userAgent?: string; createdAt: string; lastActiveAt?: string }
+interface Session { id: string; ip?: string; userAgent?: string; createdAt: string; expiresAt?: string }
 interface UserDetail {
   id: string;
   name?: string;
   email: string;
-  status: string;
-  avatarUrl?: string;
+  avatar?: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  roles: { id: string; userId: string; role: Role }[];
+  userRoles: { role: Role }[];
   sessions?: Session[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  suspended: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+const STATUS_COLORS: Record<'true' | 'false', string> = {
+  true: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  false: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
 export default function UserDetailPage() {
@@ -34,7 +33,7 @@ export default function UserDetailPage() {
   const id = params.id;
   const qc = useQueryClient();
   const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState<{ name?: string; email?: string; status?: string }>({});
+  const [form, setForm] = useState<{ name?: string; email?: string; isActive?: boolean }>({});
   const [roleInput, setRoleInput] = useState('');
 
   const { data: user, isLoading } = useQuery<UserDetail>({
@@ -43,7 +42,7 @@ export default function UserDetailPage() {
   });
 
   useEffect(() => {
-    if (user) setForm({ name: user.name, email: user.email, status: user.status });
+    if (user) setForm({ name: user.name, email: user.email, isActive: user.isActive });
   }, [user]);
 
   const { data: sessions } = useQuery<Session[]>({
@@ -97,7 +96,7 @@ export default function UserDetailPage() {
             </div>
           </div>
           <div className="flex gap-2 items-center">
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[user.status] || ''}`}>{user.status}</span>
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[String(user.isActive) as 'true' | 'false']}`}>{user.isActive ? 'Active' : 'Inactive'}</span>
             {!editMode && <button onClick={() => setEditMode(true)} className="px-3 py-1.5 text-xs bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg">Edit</button>}
           </div>
         </div>
@@ -112,10 +111,9 @@ export default function UserDetailPage() {
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Status</label>
-              <select value={form.status || ''} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} disabled={!editMode} className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-[var(--background)] disabled:opacity-60">
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="pending">Pending</option>
+              <select value={form.isActive ? 'true' : 'false'} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.value === 'true' }))} disabled={!editMode} className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-[var(--background)] disabled:opacity-60">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
               </select>
             </div>
             <div className="col-span-2">
@@ -128,7 +126,7 @@ export default function UserDetailPage() {
               <button onClick={() => updateMutation.mutate(form)} disabled={updateMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] text-sm rounded-lg hover:opacity-90">
                 <Save size={14} /> Save
               </button>
-              <button onClick={() => { setEditMode(false); setForm({ name: user.name, email: user.email, status: user.status }); }} className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]">Cancel</button>
+              <button onClick={() => { setEditMode(false); setForm({ name: user.name, email: user.email, isActive: user.isActive }); }} className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)]">Cancel</button>
             </div>
           )}
         </div>
@@ -140,13 +138,13 @@ export default function UserDetailPage() {
             <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--muted-foreground)]">Roles</h2>
           </div>
           <div className="flex flex-wrap gap-2">
-            {user.roles.map((ur) => (
-              <span key={ur.id} className="flex items-center gap-1 px-3 py-1 bg-[var(--muted)] rounded-full text-xs">
+            {user.userRoles.map((ur) => (
+              <span key={ur.role.id} className="flex items-center gap-1 px-3 py-1 bg-[var(--muted)] rounded-full text-xs">
                 {ur.role.name}
                 <button onClick={() => removeRoleMutation.mutate(ur.role.id)} className="text-[var(--muted-foreground)] hover:text-red-500 ml-1"><X size={10} /></button>
               </span>
             ))}
-            {user.roles.length === 0 && <span className="text-xs text-[var(--muted-foreground)]">No roles assigned</span>}
+            {user.userRoles.length === 0 && <span className="text-xs text-[var(--muted-foreground)]">No roles assigned</span>}
           </div>
           <div className="flex gap-2">
             <input
@@ -174,7 +172,7 @@ export default function UserDetailPage() {
               {sessions.map((s) => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--muted)] text-xs">
                   <div>
-                    <p className="font-mono">{s.ipAddress || 'Unknown IP'}</p>
+                    <p className="font-mono">{s.ip || 'Unknown IP'}</p>
                     <p className="text-[var(--muted-foreground)] truncate max-w-xs">{s.userAgent || 'Unknown agent'}</p>
                     <p className="text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleString()}</p>
                   </div>

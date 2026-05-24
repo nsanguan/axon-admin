@@ -10,14 +10,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-interface Session { id: string; ipAddress?: string; userAgent?: string; createdAt: string }
+interface Session { id: string; ip?: string; userAgent?: string; createdAt: string; expiresAt: string }
 interface Me {
   id: string;
   name?: string;
   email: string;
-  avatarUrl?: string;
-  status: string;
-  roles: { role: { name: string } }[];
+  avatar?: string;
+  isActive: boolean;
+  userRoles: { role: { id: string; name: string } }[];
 }
 
 const pwSchema = z
@@ -35,14 +35,14 @@ export default function ProfilePage() {
   const [name, setName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  const { data: me } = useQuery<Me>({
+  const { data: me, isLoading: isMeLoading, isError: isMeError } = useQuery<Me>({
     queryKey: ['me'],
     queryFn: (): Promise<Me> => apiClient.get('/users/me').then((r) => r.data as Me),
   });
 
   useEffect(() => { if (me) setName(me.name || ''); }, [me]);
 
-  const { data: sessions } = useQuery<Session[]>({
+  const { data: sessions, isLoading: isSessionsLoading } = useQuery<Session[]>({
     queryKey: ['my-sessions'],
     queryFn: () => apiClient.get('/users/me/sessions').then((r) => r.data),
   });
@@ -84,6 +84,24 @@ export default function ProfilePage() {
     }
   };
 
+  if (isMeLoading) {
+    return (
+      <AppShell>
+        <div className="h-40 max-w-2xl animate-pulse rounded-xl bg-[var(--muted)]" />
+      </AppShell>
+    );
+  }
+
+  if (isMeError || !me) {
+    return (
+      <AppShell>
+        <div className="max-w-2xl rounded-xl border border-[var(--border)] p-6 text-sm text-[var(--muted-foreground)]">
+          Unable to load your profile.
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="space-y-6 max-w-2xl">
@@ -93,22 +111,23 @@ export default function ProfilePage() {
         <div className="rounded-xl border border-[var(--border)] p-6 space-y-4">
           <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--muted-foreground)]">Account Details</h2>
 
-          {me && (
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-[var(--primary)] flex items-center justify-center text-[var(--primary-foreground)] text-xl font-bold">
-                {(me.name || me.email).charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="font-medium">{me.name || 'No name set'}</p>
-                <p className="text-sm text-[var(--muted-foreground)]">{me.email}</p>
-                <div className="flex gap-1 mt-1 flex-wrap">
-                  {me.roles.map((r) => (
-                    <span key={r.role.name} className="text-xs px-2 py-0.5 bg-[var(--muted)] rounded-full">{r.role.name}</span>
-                  ))}
-                </div>
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-full bg-[var(--primary)] flex items-center justify-center text-[var(--primary-foreground)] text-xl font-bold">
+              {(me.name || me.email).charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="font-medium">{me.name || 'No name set'}</p>
+              <p className="text-sm text-[var(--muted-foreground)]">{me.email}</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {(me.userRoles ?? []).map((r) => (
+                  <span key={r.role.id} className="rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs">{r.role.name}</span>
+                ))}
+                {(!me.userRoles || me.userRoles.length === 0) && (
+                  <span className="text-xs text-[var(--muted-foreground)]">No roles assigned</span>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
           <div>
             <label className="block text-xs font-medium mb-1">Full name</label>
@@ -172,14 +191,20 @@ export default function ProfilePage() {
             <Monitor size={16} className="text-[var(--muted-foreground)]" />
             <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--muted-foreground)]">Active Sessions</h2>
           </div>
-          {!sessions || sessions.length === 0 ? (
+          {isSessionsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div key={index} className="h-16 animate-pulse rounded-lg bg-[var(--muted)]" />
+              ))}
+            </div>
+          ) : !sessions || sessions.length === 0 ? (
             <p className="text-xs text-[var(--muted-foreground)]">No sessions found</p>
           ) : (
             <div className="space-y-2">
               {sessions.map((s) => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--muted)] text-xs">
                   <div>
-                    <p className="font-mono">{s.ipAddress || 'Unknown IP'}</p>
+                    <p className="font-mono">{s.ip || 'Unknown IP'}</p>
                     <p className="text-[var(--muted-foreground)] truncate max-w-xs">{s.userAgent || 'Unknown agent'}</p>
                     <p className="text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleString()}</p>
                   </div>

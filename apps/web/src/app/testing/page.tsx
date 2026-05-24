@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { AppShell } from '../../components/layout/AppShell';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -64,9 +65,17 @@ export default function TestingPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">MCP Testing Console</h1>
-          <p className="text-sm text-[var(--muted-foreground)] mt-1">Create and run API/MCP test requests</p>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold">MCP Testing Console</h1>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">Create and run API/MCP test requests</p>
+          </div>
+          <Link
+            href="/testing/mcp-agents"
+            className="inline-flex items-center gap-2 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm text-[var(--primary-foreground)] hover:opacity-90"
+          >
+            Open MCP Agents Testing
+          </Link>
         </div>
         <div className="flex gap-3">
           <input type="text" placeholder="Search requests..." className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-[var(--background)] w-60" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
