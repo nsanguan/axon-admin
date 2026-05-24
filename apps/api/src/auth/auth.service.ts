@@ -32,6 +32,22 @@ export class AuthService {
     const user = await this.validateUser(dto.email, dto.password);
     if (!user) throw new UnauthorizedException('Invalid credentials');
     if (!user.isActive) throw new UnauthorizedException('Account is disabled');
+    if (user.mfaSecret) {
+      if (!dto.totpCode) {
+        throw new UnauthorizedException({
+          message: 'Two-factor authentication code required',
+          code: 'MFA_REQUIRED',
+        });
+      }
+
+      const isValidTotp = await this.usersService.verifyMfaToken(user.mfaSecret, dto.totpCode);
+      if (!isValidTotp) {
+        throw new UnauthorizedException({
+          message: 'Invalid two-factor authentication code',
+          code: 'MFA_INVALID',
+        });
+      }
+    }
 
     const tokens = await this.generateTokens(user.id, user.email);
 

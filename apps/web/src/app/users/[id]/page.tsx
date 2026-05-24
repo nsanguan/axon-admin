@@ -17,6 +17,7 @@ interface UserDetail {
   email: string;
   avatar?: string | null;
   isActive: boolean;
+  hasMfaEnabled: boolean;
   createdAt: string;
   updatedAt: string;
   userRoles: { role: Role }[];
@@ -119,6 +120,14 @@ export default function UserDetailPage() {
             <div className="col-span-2">
               <label className="block text-xs font-medium mb-1">Email</label>
               <input value={form.email || ''} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} disabled={!editMode} className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-[var(--background)] disabled:opacity-60" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">2FA Status</label>
+              <div className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-[var(--muted)]">
+                <span className={`px-2 py-0.5 rounded-full text-xs ${user.hasMfaEnabled ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                  {user.hasMfaEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
             </div>
           </div>
           {editMode && (

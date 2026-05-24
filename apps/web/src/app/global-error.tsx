@@ -1,24 +1,29 @@
 'use client';
 
-/**
- * Global error boundary — replaces the root layout on unrecoverable errors.
- * Must NOT use any context-dependent components (Toaster, AppShell, etc.)
- * because it renders outside the root layout.
- */
+import { useEffect } from 'react';
+
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#09090b', color: '#fafafa' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '1rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Something went wrong</h2>
+      <body className="bg-[var(--background)] text-[var(--foreground)] antialiased">
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+          <h1 className="text-2xl font-bold">Something went wrong</h1>
+          <p className="max-w-md text-sm text-[var(--muted-foreground)]">
+            An unexpected application error occurred. You can try the action again.
+          </p>
           <button
-            onClick={reset}
-            style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', background: '#6d28d9', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}
+            onClick={() => reset()}
+            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)]"
           >
             Try again
           </button>

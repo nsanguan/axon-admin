@@ -17,7 +17,16 @@ interface Me {
   email: string;
   avatar?: string;
   isActive: boolean;
+  hasMfaEnabled: boolean;
   userRoles: { role: { id: string; name: string } }[];
+}
+
+interface MfaSetup {
+  secret: string;
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+  issuer: string;
+  accountName: string;
 }
 
 const pwSchema = z
@@ -34,6 +43,9 @@ export default function ProfilePage() {
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [mfaSetup, setMfaSetup] = useState<MfaSetup | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [disablePassword, setDisablePassword] = useState('');
 
   const { data: me, isLoading: isMeLoading, isError: isMeError } = useQuery<Me>({
     queryKey: ['me'],
@@ -83,6 +95,47 @@ export default function ProfilePage() {
       toast.error(message);
     }
   };
+
+  const setupMfaMutation = useMutation({
+    mutationFn: () => apiClient.post('/users/me/mfa/setup').then((r) => r.data as MfaSetup),
+    onSuccess: (data) => {
+      setMfaSetup(data);
+      setMfaCode('');
+      toast.success('Authenticator setup is ready');
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to start 2FA setup';
+      toast.error(message);
+    },
+  });
+
+  const enableMfaMutation = useMutation({
+    mutationFn: (payload: { secret: string; token: string }) => apiClient.post('/users/me/mfa/enable', payload).then((r) => r.data),
+    onSuccess: () => {
+      setMfaSetup(null);
+      setMfaCode('');
+      toast.success('Two-factor authentication enabled');
+      qc.invalidateQueries({ queryKey: ['me'] });
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to enable 2FA';
+      toast.error(message);
+    },
+  });
+
+  const disableMfaMutation = useMutation({
+    mutationFn: (currentPassword: string) => apiClient.post('/users/me/mfa/disable', { currentPassword }).then((r) => r.data),
+    onSuccess: () => {
+      setDisablePassword('');
+      setMfaSetup(null);
+      toast.success('Two-factor authentication disabled');
+      qc.invalidateQueries({ queryKey: ['me'] });
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to disable 2FA';
+      toast.error(message);
+    },
+  });
 
   if (isMeLoading) {
     return (
@@ -172,17 +225,88 @@ export default function ProfilePage() {
           </form>
         </div>
 
-        {/* 2FA placeholder */}
+        {/* 2FA */}
         <div className="rounded-xl border border-[var(--border)] p-6 space-y-3">
           <div className="flex items-center gap-2">
             <Shield size={16} className="text-[var(--muted-foreground)]" />
             <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--muted-foreground)]">Two-Factor Authentication</h2>
           </div>
-          <p className="text-sm text-[var(--muted-foreground)]">Protect your account with TOTP-based 2FA. Scan the QR code with your authenticator app.</p>
-          <div className="h-32 w-32 bg-[var(--muted)] rounded-lg flex items-center justify-center text-xs text-[var(--muted-foreground)]">QR code</div>
-          <button className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] opacity-50 cursor-not-allowed" disabled>
-            Enable 2FA (coming soon)
-          </button>
+          <div className="flex items-center gap-2 text-sm">
+            <span className={`px-2 py-0.5 rounded-full text-xs ${me.hasMfaEnabled ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+              {me.hasMfaEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <p className="text-[var(--muted-foreground)]">Protect your account with TOTP-based 2FA using Google Authenticator, 1Password, or similar apps.</p>
+          </div>
+
+          {!me.hasMfaEnabled && !mfaSetup && (
+            <button
+              onClick={() => setupMfaMutation.mutate()}
+              disabled={setupMfaMutation.isPending}
+              className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--muted)] disabled:opacity-50"
+            >
+              {setupMfaMutation.isPending ? 'Preparing setup...' : 'Generate QR Code'}
+            </button>
+          )}
+
+          {!me.hasMfaEnabled && mfaSetup && (
+            <div className="space-y-4 rounded-lg bg-[var(--muted)] p-4">
+              <img src={mfaSetup.qrCodeDataUrl} alt="Authenticator QR code" className="h-40 w-40 rounded-lg bg-white p-2" />
+              <div className="space-y-1 text-xs text-[var(--muted-foreground)]">
+                <p><span className="font-medium text-[var(--foreground)]">Account:</span> {mfaSetup.accountName}</p>
+                <p><span className="font-medium text-[var(--foreground)]">Issuer:</span> {mfaSetup.issuer}</p>
+                <p><span className="font-medium text-[var(--foreground)]">Manual key:</span> <span className="font-mono break-all text-[var(--foreground)]">{mfaSetup.secret}</span></p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1">6-digit code from your authenticator app</label>
+                <input
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-[var(--background)]"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => enableMfaMutation.mutate({ secret: mfaSetup.secret, token: mfaCode })}
+                  disabled={enableMfaMutation.isPending || mfaCode.length !== 6}
+                  className="px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] text-sm rounded-lg hover:opacity-90 disabled:opacity-50"
+                >
+                  {enableMfaMutation.isPending ? 'Enabling...' : 'Enable 2FA'}
+                </button>
+                <button
+                  onClick={() => { setMfaSetup(null); setMfaCode(''); }}
+                  className="px-4 py-2 text-sm border border-[var(--border)] rounded-lg hover:bg-[var(--background)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {me.hasMfaEnabled && (
+            <div className="space-y-3 rounded-lg bg-[var(--muted)] p-4">
+              <p className="text-sm text-[var(--muted-foreground)]">Two-factor authentication is active on this account. Enter your current password to disable it.</p>
+              <div>
+                <label className="block text-xs font-medium mb-1">Current password</label>
+                <input
+                  value={disablePassword}
+                  onChange={(e) => setDisablePassword(e.target.value)}
+                  type="password"
+                  autoComplete="current-password"
+                  className="w-full text-sm border border-[var(--border)] rounded-lg px-3 py-2 bg-[var(--background)]"
+                />
+              </div>
+              <button
+                onClick={() => disableMfaMutation.mutate(disablePassword)}
+                disabled={disableMfaMutation.isPending || disablePassword.length === 0}
+                className="px-4 py-2 text-sm border border-red-300 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/30"
+              >
+                {disableMfaMutation.isPending ? 'Disabling...' : 'Disable 2FA'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Sessions */}

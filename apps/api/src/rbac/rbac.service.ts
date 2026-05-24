@@ -34,7 +34,21 @@ export class RbacService {
       }),
       this.prisma.user.count({ where }),
     ]);
-    return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return {
+      data: data.map((user) => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        isActive: user.isActive,
+        hasMfaEnabled: Boolean(user.mfaSecret),
+        createdAt: user.createdAt,
+        userRoles: user.userRoles,
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async toggleUserActive(id: string, isActive: boolean) {

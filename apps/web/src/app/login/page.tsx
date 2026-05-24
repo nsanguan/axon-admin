@@ -12,6 +12,7 @@ import { apiClient } from '../../lib/api';
 const loginSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  totpCode: z.string().regex(/^$|^\d{6}$/, 'Authenticator code must be 6 digits').optional(),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -37,8 +38,15 @@ export default function LoginPage() {
       document.cookie = `axon_access_token=1; path=/; SameSite=Strict; max-age=${15 * 60}`;
       toast.success('Logged in successfully');
       router.push('/dashboard');
-    } catch {
-      toast.error('Invalid email or password');
+    } catch (err: unknown) {
+      const payload = (err as { response?: { data?: { message?: string | string[]; code?: string } } })?.response?.data;
+      const message = Array.isArray(payload?.message) ? payload?.message[0] : payload?.message;
+
+      if (payload?.code === 'MFA_REQUIRED') {
+        toast.error('Enter your 6-digit authenticator code to continue');
+      } else {
+        toast.error(message || 'Invalid email, password, or authenticator code');
+      }
     } finally {
       setLoading(false);
     }
@@ -84,6 +92,22 @@ export default function LoginPage() {
             </div>
             {errors.password && (
               <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Authenticator Code</label>
+            <input
+              {...register('totpCode')}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="123456"
+              className="w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            />
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">Required only if 2FA is enabled on your account.</p>
+            {errors.totpCode && (
+              <p className="mt-1 text-xs text-red-500">{errors.totpCode.message}</p>
             )}
           </div>
 

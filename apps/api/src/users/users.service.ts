@@ -4,12 +4,24 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { generateSecret, generateURI, verify } from 'otplib';
+import * as QRCode from 'qrcode';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from 'crypto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async findAll(query: {
     search?: string;
@@ -37,13 +49,30 @@ export class UsersService {
         orderBy: { createdAt: 'desc' },
         select: {
           id: true, email: true, name: true, avatar: true,
-          isVerified: true, isActive: true, createdAt: true, updatedAt: true,
+          isVerified: true, isActive: true, mfaSecret: true, createdAt: true, updatedAt: true,
           userRoles: { select: { role: { select: { id: true, name: true } } } },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
-    return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return {
+      data: data.map((user) => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        isVerified: user.isVerified,
+        isActive: user.isActive,
+        hasMfaEnabled: Boolean(user.mfaSecret),
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        userRoles: user.userRoles,
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
   }
 
   async findByEmail(email: string) {
@@ -55,12 +84,23 @@ export class UsersService {
       where: { id },
       select: {
         id: true, email: true, name: true, avatar: true,
-        isVerified: true, isActive: true, createdAt: true, updatedAt: true,
+        isVerified: true, isActive: true, mfaSecret: true, createdAt: true, updatedAt: true,
         userRoles: { select: { role: { select: { id: true, name: true, description: true } } } },
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar,
+      isVerified: user.isVerified,
+      isActive: user.isActive,
+      hasMfaEnabled: Boolean(user.mfaSecret),
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      userRoles: user.userRoles,
+    };
   }
 
   async createUser(data: { email: string; name: string; password: string; roleId?: string }) {
@@ -96,6 +136,62 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await this.prisma.user.update({ where: { id }, data: { passwordHash } });
     return { message: 'Password updated' };
+  }
+
+  async beginMfaSetup(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.mfaSecret) throw new ConflictException('Two-factor authentication is already enabled');
+
+    const issuer = this.configService.get<string>('APP_NAME') || 'AXON Admin';
+    const secret = generateSecret();
+    const otpauthUrl = generateURI({
+      secret,
+      issuer,
+      label: user.email,
+      strategy: 'totp',
+    });
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, { margin: 1, width: 192 });
+
+    return {
+      secret,
+      otpauthUrl,
+      qrCodeDataUrl,
+      issuer,
+      accountName: user.email,
+    };
+  }
+
+  async enableMfa(userId: string, secret: string, token: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.mfaSecret) throw new ConflictException('Two-factor authentication is already enabled');
+    if (!(await verify({ token, secret, strategy: 'totp' }))) {
+      throw new ForbiddenException('Invalid authenticator code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: this.encryptMfaSecret(secret) },
+    });
+
+    return { message: 'Two-factor authentication enabled', hasMfaEnabled: true };
+  }
+
+  async disableMfa(userId: string, currentPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.mfaSecret) throw new ConflictException('Two-factor authentication is not enabled');
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash || '');
+    if (!valid) throw new ForbiddenException('Current password is incorrect');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: null },
+    });
+
+    return { message: 'Two-factor authentication disabled', hasMfaEnabled: false };
   }
 
   async assignRole(userId: string, roleId: string) {
@@ -142,6 +238,45 @@ export class UsersService {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+  }
+
+  async verifyMfaToken(encryptedSecret: string, token: string) {
+    const secret = this.decryptMfaSecret(encryptedSecret);
+    return verify({ token, secret, strategy: 'totp' });
+  }
+
+  private getMfaEncryptionKey() {
+    const rawKey = this.configService.get<string>('APP_ENCRYPTION_KEY')
+      || this.configService.get<string>('JWT_SECRET')
+      || 'axon-admin-local-dev-key';
+    return createHash('sha256').update(rawKey).digest();
+  }
+
+  private encryptMfaSecret(secret: string) {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.getMfaEncryptionKey(), iv);
+    const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    return `${iv.toString('base64')}.${authTag.toString('base64')}.${encrypted.toString('base64')}`;
+  }
+
+  private decryptMfaSecret(payload: string) {
+    const [ivText, authTagText, cipherText] = payload.split('.');
+    if (!ivText || !authTagText || !cipherText) {
+      throw new ForbiddenException('Stored two-factor secret is invalid');
+    }
+
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      this.getMfaEncryptionKey(),
+      Buffer.from(ivText, 'base64'),
+    );
+    decipher.setAuthTag(Buffer.from(authTagText, 'base64'));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(cipherText, 'base64')),
+      decipher.final(),
+    ]);
+    return decrypted.toString('utf8');
   }
 
   sanitize(user: { passwordHash?: string | null; mfaSecret?: string | null; [key: string]: unknown }) {

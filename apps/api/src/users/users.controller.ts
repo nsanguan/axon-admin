@@ -41,6 +41,30 @@ export class UsersController {
     return this.usersService.changePassword(req.user.id, body.currentPassword, body.newPassword);
   }
 
+  @Post('me/mfa/setup')
+  @ApiOperation({ summary: 'Start TOTP 2FA setup for current user' })
+  beginMfaSetup(@Req() req: AuthReq) {
+    return this.usersService.beginMfaSetup(req.user.id);
+  }
+
+  @Post('me/mfa/enable')
+  @ApiOperation({ summary: 'Enable TOTP 2FA for current user' })
+  enableMfa(
+    @Req() req: AuthReq,
+    @Body() body: { secret: string; token: string },
+  ) {
+    return this.usersService.enableMfa(req.user.id, body.secret, body.token);
+  }
+
+  @Post('me/mfa/disable')
+  @ApiOperation({ summary: 'Disable TOTP 2FA for current user' })
+  disableMfa(
+    @Req() req: AuthReq,
+    @Body() body: { currentPassword: string },
+  ) {
+    return this.usersService.disableMfa(req.user.id, body.currentPassword);
+  }
+
   @Get('me/sessions')
   @ApiOperation({ summary: 'List own active sessions' })
   getMySessions(@Req() req: AuthReq) {
